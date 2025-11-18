@@ -67,12 +67,50 @@ type CharacterContextValue = {
   charactersError: string | null;
 };
 
+type SessionLogEntryModel = {
+  timestamp: string;
+  character_name: string;
+  user_message: string;
+  assistant_response: string;
+};
+
+type SessionLogModel = {
+  session_id: string;
+  entries: SessionLogEntryModel[];
+};
+
+type SessionSummary = {
+  sessionId: string;
+  updatedAt: string;
+  characterName: string;
+  preview: string | null;
+};
+
+type SessionHistoryContextValue = {
+  sessions: readonly SessionSummary[];
+  isLoadingSessions: boolean;
+  sessionsError: string | null;
+  refreshSessions: () => Promise<void>;
+  openSession: (sessionId: string) => Promise<void>;
+  startNewSession: () => void;
+  activeSessionId: string;
+};
+
 const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
+const SessionHistoryContext = createContext<SessionHistoryContextValue | undefined>(undefined);
 
 export const useCharacterOptions = (): CharacterContextValue => {
   const context = useContext(CharacterContext);
   if (!context) {
     throw new Error("useCharacterOptions must be used within MyRuntimeProvider");
+  }
+  return context;
+};
+
+export const useSessionHistory = (): SessionHistoryContextValue => {
+  const context = useContext(SessionHistoryContext);
+  if (!context) {
+    throw new Error("useSessionHistory must be used within MyRuntimeProvider");
   }
   return context;
 };
@@ -83,7 +121,7 @@ export function MyRuntimeProvider({
   children: React.ReactNode;
 }>) {
   const [messages, setMessages] = useState<readonly ThreadMessageLike[]>([]);
-  const [sessionId] = useState<string>(() => createSessionId());
+  const [sessionId, setSessionId] = useState<string>(() => createSessionId());
   const [isRunning, setIsRunning] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastAssistantMessageIdRef = useRef<string | null>(null);
@@ -91,6 +129,9 @@ export function MyRuntimeProvider({
   const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(true);
   const [charactersError, setCharactersError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<readonly SessionSummary[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
 
   const baseUrl = useMemo(() => {
     return process.env["NEXT_PUBLIC_FASTAPI_URL"] ?? "http://localhost:8000";
@@ -173,6 +214,96 @@ export function MyRuntimeProvider({
     persistCharacter(selectedCharacter);
   }, [selectedCharacter]);
 
+  const refreshSessions = useCallback(async () => {
+    setIsLoadingSessions(true);
+    setSessionsError(null);
+    try {
+      const response = await fetch(`${baseUrl}/logs`);
+      if (!response.ok) {
+        throw new Error(`Failed to load logs (${response.status})`);
+      }
+      const payload: SessionLogModel[] = await response.json();
+      const summaries: SessionSummary[] = payload.map((session) => {
+        const latestEntry = session.entries[session.entries.length - 1];
+        const previewText =
+          latestEntry?.assistant_response?.trim() ||
+          latestEntry?.user_message?.trim() ||
+          null;
+        return {
+          sessionId: session.session_id,
+          updatedAt: latestEntry?.timestamp ?? new Date().toISOString(),
+          characterName: latestEntry?.character_name ?? "Unknown",
+          preview: previewText,
+        };
+      });
+      summaries.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+      setSessions(summaries);
+    } catch (error) {
+      setSessionsError(
+        error instanceof Error ? error.message : "Unable to load previous chats.",
+      );
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  }, [baseUrl]);
+
+  const buildMessagesFromSession = useCallback((session: SessionLogModel) => {
+    const restored: ThreadMessageLike[] = [];
+    session.entries.forEach((entry) => {
+      if (entry.user_message) {
+        restored.push({
+          id: createMessageId(),
+          role: "user",
+          content: [{ type: "text", text: entry.user_message }],
+        });
+      }
+      if (entry.assistant_response) {
+        restored.push({
+          id: createMessageId(),
+          role: "assistant",
+          content: [{ type: "text", text: entry.assistant_response }],
+        });
+      }
+    });
+    return restored;
+  }, []);
+
+  const openSession = useCallback(
+    async (targetSessionId: string) => {
+      try {
+        const response = await fetch(
+          `${baseUrl}/logs?session_id=${encodeURIComponent(targetSessionId)}`,
+        );
+        if (!response.ok) {
+          throw new Error(`Failed to load session ${targetSessionId}`);
+        }
+        const payload: SessionLogModel[] = await response.json();
+        const session = payload[0];
+        if (!session) {
+          throw new Error("Session not found");
+        }
+        const restoredMessages = buildMessagesFromSession(session);
+        setMessages(restoredMessages);
+        setSessionId(targetSessionId);
+      } catch (error) {
+        console.error("Unable to open session", error);
+        setSessionsError(
+          error instanceof Error ? error.message : "Unable to open selected chat.",
+        );
+      }
+    },
+    [baseUrl, buildMessagesFromSession],
+  );
+
+  const startNewSession = useCallback(() => {
+    setSessionId(createSessionId());
+    setMessages([]);
+  }, []);
+
+  useEffect(() => {
+    void refreshSessions();
+  }, [refreshSessions]);
+
   const characterContextValue = useMemo<CharacterContextValue>(
     () => ({
       characters,
@@ -182,6 +313,27 @@ export function MyRuntimeProvider({
       charactersError,
     }),
     [characters, selectedCharacter, selectCharacter, isLoadingCharacters, charactersError],
+  );
+
+  const sessionHistoryContextValue = useMemo<SessionHistoryContextValue>(
+    () => ({
+      sessions,
+      isLoadingSessions,
+      sessionsError,
+      refreshSessions,
+      openSession,
+      startNewSession,
+      activeSessionId: sessionId,
+    }),
+    [
+      sessions,
+      isLoadingSessions,
+      sessionsError,
+      refreshSessions,
+      openSession,
+      startNewSession,
+      sessionId,
+    ],
   );
 
   const appendMessage = useCallback(
@@ -366,6 +518,7 @@ export function MyRuntimeProvider({
 
         const finalText = assembledText.trim().length > 0 ? assembledText.trim() : "(No response received.)";
         setAssistantText(assistantMessageId, finalText);
+        void refreshSessions();
       } catch (error) {
         console.error("Failed to reach FastAPI backend", error);
         const isAbortError = error instanceof DOMException && error.name === "AbortError";
@@ -381,7 +534,7 @@ export function MyRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [appendMessage, baseUrl, selectedCharacter, sessionId, setAssistantText],
+    [appendMessage, baseUrl, refreshSessions, selectedCharacter, sessionId, setAssistantText],
   );
 
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
@@ -395,7 +548,9 @@ export function MyRuntimeProvider({
 
   return (
     <CharacterContext.Provider value={characterContextValue}>
-      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+      <SessionHistoryContext.Provider value={sessionHistoryContextValue}>
+        <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+      </SessionHistoryContext.Provider>
     </CharacterContext.Provider>
   );
 }
