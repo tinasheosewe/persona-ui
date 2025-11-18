@@ -1,54 +1,36 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
 # dependencies
-node_modules
+/node_modules
 /.pnp
-.pnp.*
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
 
 # misc
 .DS_Store
 *.pem
 
 # debug
-.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# env files
+# local env files
 .env*.local
-.env
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
 
 # vercel
 .vercel
 
-# testing
-coverage
-.stryker-tmp/
-reports/mutation/
-
-# next.js
-.next/
-out/
-
-# fumadocs
-.source
-
-# production
-dist
-apps/docs/generated
-packages/*/generated
-
-# turbo
-.turbo
-
-# python
-__pycache__
-
-.langgraph_api
-
-# Cursor
-.cursor
-
-# GitHub Spec Kit - https://github.com/github/spec-kit
-.specify/
-specs/*
+# typescript
+*.tsbuildinfo
+next-env.d.ts
