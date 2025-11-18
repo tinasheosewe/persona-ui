@@ -1,6 +1,7 @@
 "use client";
 
-import { RefreshCwIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { RefreshCwIcon, PlusIcon, XIcon } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { useSessionHistory } from "@/app/MyRuntimeProvider";
@@ -17,7 +18,15 @@ const formatTimestamp = (isoString: string): string => {
   }
 };
 
-export const SessionSidebar = () => {
+type SessionSidebarProps = {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+};
+
+export const SessionSidebar: FC<SessionSidebarProps> = ({
+  mobileOpen = false,
+  onClose,
+}) => {
   const {
     sessions,
     isLoadingSessions,
@@ -29,8 +38,13 @@ export const SessionSidebar = () => {
   } = useSessionHistory();
 
   return (
-    <aside className="w-72 border-r border-border bg-card/30 h-full flex flex-col">
-      <div className="p-4 pb-2 flex items-center justify-between border-b border-border/50">
+    <aside
+      className={cn(
+        "fixed inset-y-0 left-0 z-40 flex h-dvh w-72 max-w-[90vw] flex-col border border-border bg-card/95 shadow-xl shadow-black/10 transition-transform duration-200 ease-out backdrop-blur-md md:static md:h-full md:max-w-none md:border-r md:bg-card/30 md:shadow-none",
+        mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+      )}
+    >
+      <div className="p-4 pb-2 flex items-center justify-between gap-3 border-b border-border/50">
         <div>
           <p className="text-sm font-semibold">Chats</p>
           <p className="text-xs text-muted-foreground">Resume a previous session</p>
@@ -52,6 +66,16 @@ export const SessionSidebar = () => {
           >
             <PlusIcon className="h-4 w-4" />
           </TooltipIconButton>
+          {onClose && (
+            <button
+              type="button"
+              aria-label="Close sidebar"
+              onClick={onClose}
+              className="md:hidden inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-foreground transition hover:bg-muted"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -76,6 +100,9 @@ export const SessionSidebar = () => {
                   type="button"
                   onClick={() => {
                     void openSession(session.sessionId);
+                    if (onClose) {
+                      onClose();
+                    }
                   }}
                   className={cn(
                     "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors",
