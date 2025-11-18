@@ -127,6 +127,7 @@ export function MyRuntimeProvider({
   const lastAssistantMessageIdRef = useRef<string | null>(null);
   const [characters, setCharacters] = useState<readonly string[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
+  const hasHydratedStoredCharacterRef = useRef(false);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(true);
   const [charactersError, setCharactersError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([]);
@@ -211,6 +212,12 @@ export function MyRuntimeProvider({
   );
 
   useEffect(() => {
+    if (!hasHydratedStoredCharacterRef.current) {
+      if (selectedCharacter === null) {
+        return;
+      }
+      hasHydratedStoredCharacterRef.current = true;
+    }
     persistCharacter(selectedCharacter);
   }, [selectedCharacter]);
 
