@@ -6,7 +6,15 @@ import {
   ThreadMessageLike,
   useExternalStoreRuntime,
 } from "@assistant-ui/react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 const convertMessage = (message: ThreadMessageLike) => {
   return message;
@@ -22,6 +30,25 @@ const createClientId = (fallbackPrefix: string) => {
 
 const createSessionId = () => createClientId("session");
 const createMessageId = () => createClientId("msg");
+const CHARACTER_STORAGE_KEY = "chatbot.selectedCharacter";
+
+const getStoredCharacter = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.sessionStorage.getItem(CHARACTER_STORAGE_KEY);
+};
+
+const persistCharacter = (value: string | null) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (value) {
+    window.sessionStorage.setItem(CHARACTER_STORAGE_KEY, value);
+  } else {
+    window.sessionStorage.removeItem(CHARACTER_STORAGE_KEY);
+  }
+};
 
 const getMessageText = (message: ThreadMessageLike): string => {
   if (typeof message.content === "string") {
@@ -30,6 +57,24 @@ const getMessageText = (message: ThreadMessageLike): string => {
 
   const textPart = message.content.find((part) => part.type === "text");
   return textPart?.text ?? "";
+};
+
+type CharacterContextValue = {
+  characters: readonly string[];
+  selectedCharacter: string | null;
+  selectCharacter: (name: string) => void;
+  isLoadingCharacters: boolean;
+  charactersError: string | null;
+};
+
+const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
+
+export const useCharacterOptions = (): CharacterContextValue => {
+  const context = useContext(CharacterContext);
+  if (!context) {
+    throw new Error("useCharacterOptions must be used within MyRuntimeProvider");
+  }
+  return context;
 };
 
 export function MyRuntimeProvider({
@@ -42,10 +87,102 @@ export function MyRuntimeProvider({
   const [isRunning, setIsRunning] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastAssistantMessageIdRef = useRef<string | null>(null);
+  const [characters, setCharacters] = useState<readonly string[]>([]);
+  const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
+  const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(true);
+  const [charactersError, setCharactersError] = useState<string | null>(null);
 
   const baseUrl = useMemo(() => {
     return process.env["NEXT_PUBLIC_FASTAPI_URL"] ?? "http://localhost:8000";
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadCharacters = async () => {
+      setIsLoadingCharacters(true);
+      setCharactersError(null);
+      try {
+        const response = await fetch(`${baseUrl}/characters`, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to load characters (${response.status})`);
+        }
+
+        const payload: { characters?: string[] } = await response.json();
+        const nextCharacters = Array.isArray(payload.characters) ? payload.characters : [];
+        if (!nextCharacters.length) {
+          throw new Error("No characters available from the server");
+        }
+
+        if (!cancelled) {
+          const storedCharacter = getStoredCharacter();
+          setCharacters(nextCharacters);
+          setSelectedCharacter((current) => {
+            if (storedCharacter && nextCharacters.includes(storedCharacter)) {
+              return storedCharacter;
+            }
+            if (current && nextCharacters.includes(current)) {
+              return current;
+            }
+            return nextCharacters[0] ?? null;
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCharacters([]);
+          setSelectedCharacter(null);
+          persistCharacter(null);
+          setCharactersError(
+            error instanceof Error ? error.message : "Unable to load characters.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingCharacters(false);
+        }
+      }
+    };
+
+    void loadCharacters();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [baseUrl]);
+
+  const selectCharacter = useCallback(
+    (name: string) => {
+      if (!characters.includes(name) || name === selectedCharacter) {
+        return;
+      }
+      setSelectedCharacter(name);
+      persistCharacter(name);
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    },
+    [characters, selectedCharacter],
+  );
+
+  useEffect(() => {
+    persistCharacter(selectedCharacter);
+  }, [selectedCharacter]);
+
+  const characterContextValue = useMemo<CharacterContextValue>(
+    () => ({
+      characters,
+      selectedCharacter,
+      selectCharacter,
+      isLoadingCharacters,
+      charactersError,
+    }),
+    [characters, selectedCharacter, selectCharacter, isLoadingCharacters, charactersError],
+  );
 
   const appendMessage = useCallback(
     (message: ThreadMessageLike) => {
@@ -112,6 +249,11 @@ export function MyRuntimeProvider({
         return;
       }
 
+      if (!selectedCharacter) {
+        console.warn("A character must be selected before sending messages.");
+        return;
+      }
+
       appendMessage({
         id: createMessageId(),
         role: "user",
@@ -142,6 +284,7 @@ export function MyRuntimeProvider({
             message: text,
             session_id: sessionId,
             verbose: false,
+            character_name: selectedCharacter,
           }),
           signal: controller.signal,
         });
@@ -238,7 +381,7 @@ export function MyRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [appendMessage, baseUrl, sessionId, setAssistantText],
+    [appendMessage, baseUrl, selectedCharacter, sessionId, setAssistantText],
   );
 
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
@@ -251,8 +394,8 @@ export function MyRuntimeProvider({
   });
 
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      {children}
-    </AssistantRuntimeProvider>
+    <CharacterContext.Provider value={characterContextValue}>
+      <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+    </CharacterContext.Provider>
   );
 }

@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ActionBarPrimitive,
   BranchPickerPrimitive,
@@ -11,6 +13,7 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  Loader2Icon,
   CopyIcon,
   PencilIcon,
   RefreshCwIcon,
@@ -21,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { useCharacterOptions } from "@/app/MyRuntimeProvider";
 
 export const Thread: FC = () => {
   return (
@@ -31,7 +35,9 @@ export const Thread: FC = () => {
       }}
     >
       <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
-        <ThreadWelcome />
+  <CharacterSelector />
+
+  <ThreadWelcome />
 
         <ThreadPrimitive.Messages
           components={{
@@ -81,20 +87,32 @@ const ThreadWelcome: FC = () => {
 };
 
 const Composer: FC = () => {
+  const { isLoadingCharacters, selectedCharacter } = useCharacterOptions();
+  const composerDisabled = isLoadingCharacters || !selectedCharacter;
+  const placeholder = isLoadingCharacters
+    ? "Loading characters..."
+    : !selectedCharacter
+      ? "Select a character to start"
+      : "Write a message...";
+
   return (
-    <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
+    <ComposerPrimitive.Root
+      className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in"
+      data-disabled={composerDisabled || undefined}
+    >
       <ComposerPrimitive.Input
         rows={1}
         autoFocus
-        placeholder="Write a message..."
+        disabled={composerDisabled}
+        placeholder={placeholder}
         className="placeholder:text-muted-foreground max-h-40 flex-grow resize-none border-none bg-transparent px-2 py-4 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
       />
-      <ComposerAction />
+      <ComposerAction disabled={composerDisabled} />
     </ComposerPrimitive.Root>
   );
 };
 
-const ComposerAction: FC = () => {
+const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled }) => {
   return (
     <>
       <ThreadPrimitive.If running={false}>
@@ -103,6 +121,7 @@ const ComposerAction: FC = () => {
             tooltip="Send"
             variant="default"
             className="my-2.5 size-8 p-2 transition-opacity ease-in"
+            disabled={disabled}
           >
             <SendHorizontalIcon />
           </TooltipIconButton>
@@ -239,6 +258,62 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
       </BranchPickerPrimitive.Next>
     </BranchPickerPrimitive.Root>
   );
+};
+
+const CharacterSelector: FC = () => {
+  const {
+    characters,
+    selectedCharacter,
+    selectCharacter,
+    isLoadingCharacters,
+    charactersError,
+  } = useCharacterOptions();
+
+  const hasCharacters = characters.length > 0;
+  const selectDisabled = isLoadingCharacters || !hasCharacters;
+
+  return (
+  <div className="self-start w-full max-w-[var(--thread-max-width)] rounded-lg border border-border bg-card/60 p-4 text-sm mb-6">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Character
+      </p>
+      <div className="mt-2 flex items-center gap-3">
+        <select
+          className="flex-grow rounded-md border border-input bg-background px-3 py-2 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60"
+          value={selectedCharacter ?? ""}
+          onChange={(event) => selectCharacter(event.target.value)}
+          disabled={selectDisabled}
+        >
+          <option value="" disabled>
+            {isLoadingCharacters
+              ? "Loading characters..."
+              : hasCharacters
+                ? "Select a character"
+                : "No characters available"}
+          </option>
+          {characters.map((character) => (
+            <option key={character} value={character}>
+              {formatCharacterLabel(character)}
+            </option>
+          ))}
+        </select>
+        {isLoadingCharacters && (
+          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+        )}
+      </div>
+      {charactersError && (
+        <p className="mt-2 text-xs text-red-500">{charactersError}</p>
+      )}
+    </div>
+  );
+};
+
+const formatCharacterLabel = (value: string): string => {
+  return value
+    .split("_")
+    .filter((segment) => segment.length > 0)
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
+    .join(" ");
 };
 
 const CircleStopIcon = () => {
