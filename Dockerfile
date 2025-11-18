@@ -9,7 +9,7 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git openssh-client \
-        python3 build-essential pkg-config libvips \
+        python3 python-is-python3 build-essential pkg-config libvips libvips-dev \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable pnpm
 
