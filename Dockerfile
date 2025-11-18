@@ -1,7 +1,8 @@
 # Multi-stage build for the with-external-store example
 FROM node:20.18.1-bookworm-slim AS base
 
-ENV PNPM_HOME="/root/.local/share/pnpm" \
+ENV PNPM_VERSION="10.22.0" \
+    PNPM_HOME="/root/.local/share/pnpm" \
     PATH="$PNPM_HOME:$PATH" \
     NEXT_TELEMETRY_DISABLED="1"
 
@@ -11,7 +12,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git openssh-client \
         python3 python-is-python3 build-essential pkg-config libvips libvips-dev \
     && rm -rf /var/lib/apt/lists/* \
-    && corepack enable pnpm
+    && corepack disable \
+    && npm install -g pnpm@${PNPM_VERSION}
 
 COPY . .
 
@@ -22,14 +24,16 @@ RUN pnpm install --frozen-lockfile=false \
 
 FROM node:20.18.1-bookworm-slim AS runner
 
-ENV PNPM_HOME="/root/.local/share/pnpm" \
+ENV PNPM_VERSION="10.22.0" \
+    PNPM_HOME="/root/.local/share/pnpm" \
     PATH="$PNPM_HOME:$PATH" \
     NODE_ENV="production" \
     NEXT_TELEMETRY_DISABLED="1"
 
 WORKDIR /app
 
-RUN corepack enable pnpm
+RUN corepack disable \
+    && npm install -g pnpm@${PNPM_VERSION}
 
 COPY --from=base /app /app
 
