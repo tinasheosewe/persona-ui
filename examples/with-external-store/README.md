@@ -41,6 +41,16 @@ Then open <http://localhost:3000>. Messages you send in the UI will be forwarded
 }
 ```
 
+### Streaming responses
+
+For a smoother UX, the FastAPI server also exposes `POST /chat/stream`, which returns a `text/event-stream` feed. Each `data:` line includes JSON objects of the shape:
+
+```json
+{ "type": "delta", "content": "partial text" }
+```
+
+The Next.js runtime in this example listens to those chunks and updates the assistant bubble in real time until it receives `{ "type": "done" }`. If your backend cannot provide streaming chunks, it can still respond once with the complete message, and the UI will render that final payload.
+
 ## Production build check
 
 ```bash
