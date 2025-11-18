@@ -6,7 +6,7 @@ import {
   ThreadMessageLike,
   useExternalStoreRuntime,
 } from "@assistant-ui/react";
-import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
+import { resolveFastApiBaseUrl } from "../lib/resolve-fastapi-url";
 import {
   createContext,
   useCallback,

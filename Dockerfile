@@ -1,24 +1,23 @@
 # Multi-stage build for the lightweight Next.js chat app
-FROM node:20.18.1-bookworm-slim AS deps
+FROM node:20.18.1-bookworm-slim AS base
 
 ENV PNPM_HOME="/root/.local/share/pnpm" \
     PATH="$PNPM_HOME:$PATH" \
     NEXT_TELEMETRY_DISABLED="1"
 
+RUN npm install -g pnpm@9.12.3
+
 WORKDIR /app
 
-RUN corepack enable
+FROM base AS deps
 
 COPY package.json pnpm-lock.yaml* ./
 
 RUN pnpm install --frozen-lockfile=false
 
-FROM node:20.18.1-bookworm-slim AS builder
+FROM base AS builder
 
-ENV NODE_ENV="production" \
-    NEXT_TELEMETRY_DISABLED="1"
-
-WORKDIR /app
+ENV NODE_ENV="production"
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
