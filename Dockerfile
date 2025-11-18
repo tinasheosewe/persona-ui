@@ -1,9 +1,11 @@
 # Multi-stage build for the lightweight Next.js chat app
+
 FROM node:20.18.1-bookworm-slim AS base
 
 ENV PNPM_HOME="/root/.local/share/pnpm" \
     PATH="$PNPM_HOME:$PATH" \
-    NEXT_TELEMETRY_DISABLED="1"
+    NEXT_TELEMETRY_DISABLED="1" \
+    NEXT_PUBLIC_FASTAPI_URL="https://your-backend.example.com"
 
 RUN npm install -g pnpm@9.12.3
 
@@ -27,7 +29,8 @@ RUN pnpm build
 FROM node:20.18.1-bookworm-slim AS runner
 
 ENV NODE_ENV="production" \
-    NEXT_TELEMETRY_DISABLED="1"
+    NEXT_TELEMETRY_DISABLED="1" \
+    NEXT_PUBLIC_FASTAPI_URL="https://your-backend.example.com"
 
 WORKDIR /app
 

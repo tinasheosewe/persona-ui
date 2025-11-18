@@ -37,6 +37,7 @@ The included `Dockerfile` performs the same steps in a multi-stage container bui
 - The Dockerfile explicitly installs `pnpm@9.12.3` because Corepack inside Node 20.18.1 ships without the signing key that pnpm now uses. Without that pin you'll see `Cannot find matching keyid` errors during `pnpm install` on Render or other CI environments.
 - If you're building outside of Docker, either run `corepack prepare pnpm@9.12.3 --activate` or prefix commands with `npx pnpm@9.12.3` so your local environment matches.
 - Render automatically consumes the Dockerfile, so redeploying after this change is enough—no extra service configuration is required.
+- The Docker image now bakes in `NEXT_PUBLIC_FASTAPI_URL=https://your-backend.example.com`. Update the `Dockerfile` if you deploy a different backend URL, then rebuild/push so the client bundle picks it up.
 
 ## Linting
 
