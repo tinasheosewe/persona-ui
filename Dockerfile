@@ -39,4 +39,4 @@ COPY --from=base /app /app
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "pnpm --filter with-external-store run start -- --hostname 0.0.0.0 --port ${PORT:-3000}"]
+CMD ["sh", "-c", "pnpm --filter with-external-store exec -- next start --hostname 0.0.0.0 --port ${PORT:-3000}"]
