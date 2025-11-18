@@ -1,15 +1,20 @@
 "use client";
 
-import { ThreadMessageLike } from "@assistant-ui/react";
-import { AppendMessage } from "@assistant-ui/react";
 import {
+  AppendMessage,
   AssistantRuntimeProvider,
+  ThreadMessageLike,
   useExternalStoreRuntime,
 } from "@assistant-ui/react";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 const convertMessage = (message: ThreadMessageLike) => {
   return message;
+};
+
+type FastAPIResponse = {
+  session_id: string;
+  response: string;
 };
 
 export function MyRuntimeProvider({
@@ -18,31 +23,86 @@ export function MyRuntimeProvider({
   children: React.ReactNode;
 }>) {
   const [messages, setMessages] = useState<readonly ThreadMessageLike[]>([]);
+  const [sessionId, setSessionId] = useState<string | undefined>();
+  const [isRunning, setIsRunning] = useState(false);
 
-  const onNew = async (message: AppendMessage) => {
-    if (message.content.length !== 1 || message.content[0]?.type !== "text")
-      throw new Error("Only text content is supported");
+  const baseUrl = useMemo(() => {
+    return process.env["NEXT_PUBLIC_FASTAPI_URL"] ?? "http://localhost:8000";
+  }, []);
 
-    const userMessage: ThreadMessageLike = {
-      role: "user",
-      content: [{ type: "text", text: message.content[0].text }],
-    };
-    setMessages((currentMessages) => [...currentMessages, userMessage]);
+  const appendMessage = useCallback(
+    (message: ThreadMessageLike) => {
+      setMessages((currentMessages) => [...currentMessages, message]);
+    },
+    [],
+  );
 
-    // normally you would perform an API call here to get the assistant response
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+  const onNew = useCallback(
+    async (message: AppendMessage) => {
+      const firstPart = message.content[0];
+      if (!firstPart || firstPart.type !== "text") {
+        throw new Error("Only plain text messages are supported.");
+      }
 
-    const assistantMessage: ThreadMessageLike = {
-      role: "assistant",
-      content: [{ type: "text", text: "Hello, world!" }],
-    };
-    setMessages((currentMessages) => [...currentMessages, assistantMessage]);
-  };
+      const text = firstPart.text.trim();
+      if (!text) {
+        return;
+      }
+
+      appendMessage({
+        role: "user",
+        content: [{ type: "text", text }],
+      });
+
+      setIsRunning(true);
+
+      try {
+        const response = await fetch(`${baseUrl}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: text,
+            session_id: sessionId,
+            verbose: false,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+
+        const data: FastAPIResponse = await response.json();
+        setSessionId(data.session_id);
+
+        appendMessage({
+          role: "assistant",
+          content: [{ type: "text", text: data.response.trim() }],
+        });
+      } catch (error) {
+        console.error("Failed to reach FastAPI backend", error);
+        appendMessage({
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "Sorry, I couldn’t reach the assistant service. Please try again.",
+            },
+          ],
+        });
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [appendMessage, baseUrl, sessionId],
+  );
 
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
     messages,
     setMessages,
     onNew,
+    isRunning,
     convertMessage,
   });
 
