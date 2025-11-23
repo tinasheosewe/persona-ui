@@ -4,8 +4,6 @@ node_modules
 .next
 apps/**/.next
 packages/**/.next
-examples/**/.next
-examples/**/.turbo
 packages/**/dist
 vector_store
 .DS_Store
