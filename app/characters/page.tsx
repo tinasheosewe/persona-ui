@@ -321,10 +321,10 @@ export default function CharacterManagerPage() {
   const disabled = isLoadingCharacters || characters.length === 0;
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-6 overflow-hidden px-4 py-6">
-      <div className="grid flex-1 min-h-0 gap-6 md:grid-cols-2">
-        <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm">
-        <div className="flex flex-shrink-0 flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-6 px-4 py-6 lg:overflow-hidden">
+      <div className="flex flex-col gap-6 lg:flex-1 lg:min-h-0 lg:grid lg:grid-cols-2">
+        <section className="flex flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm lg:min-h-0">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Character roster
@@ -354,7 +354,7 @@ export default function CharacterManagerPage() {
             </div>
           </form>
         </div>
-        <div className="mt-6 flex-1 min-h-0 overflow-auto">
+        <div className="mt-6 overflow-x-auto lg:flex-1 lg:min-h-0 lg:overflow-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -420,8 +420,8 @@ export default function CharacterManagerPage() {
         )}
       </section>
 
-        <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm">
-        <div className="flex flex-shrink-0 flex-col gap-2">
+  <section className="flex flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm lg:min-h-0">
+  <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -448,7 +448,7 @@ export default function CharacterManagerPage() {
             New uploads trigger a full vector rebuild and are available in chat once that completes.
           </p>
         </div>
-        <div className="mt-5 flex-1 min-h-0 space-y-4 overflow-auto pr-1">
+  <div className="mt-5 space-y-4 lg:flex-1 lg:min-h-0 lg:overflow-auto lg:pr-1">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -513,8 +513,8 @@ export default function CharacterManagerPage() {
       </section>
       </div>
 
-      <section className="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm">
-        <div className="flex flex-shrink-0 items-center justify-between">
+      <section className="flex flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm lg:flex-1 lg:min-h-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Documents</h2>
           {selectedCharacter && (
             <p className="text-sm text-muted-foreground">
@@ -522,7 +522,7 @@ export default function CharacterManagerPage() {
             </p>
           )}
         </div>
-        <div className="mt-4 flex-1 min-h-0 overflow-auto">
+        <div className="mt-4 space-y-4 lg:flex-1 lg:min-h-0 lg:overflow-auto">
           {isLoadingDocuments ? (
             <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2Icon className="h-4 w-4 animate-spin" />
