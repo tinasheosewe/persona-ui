@@ -9,7 +9,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <main className="flex h-dvh flex-col bg-background md:flex-row">
+    <main className="flex min-h-full flex-col bg-background md:flex-row">
       <div className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
         <button
           type="button"

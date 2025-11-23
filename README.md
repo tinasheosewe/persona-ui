@@ -23,6 +23,23 @@ pnpm dev
 
 Open <http://localhost:3000>. Pick a character, start messaging, and use the left sidebar to jump back into saved sessions or start a fresh chat.
 
+### Character management page
+
+Need to inspect or update a character's knowledge base without leaving the browser?
+Navigate to `/characters` (or click **Characters** in the top navigation) to open the
+new management dashboard. It loads the same character list from the backend and lets you:
+
+- View every document currently attached to a character, including size and last
+	modified timestamps.
+- Open a document in a new tab via the direct download link.
+- Upload new source files—each upload blocks until vectorization finishes so the
+	file is immediately ready for chat sessions.
+- Remove outdated documents, which automatically triggers a vector rebuild so the
+	embeddings stay in sync.
+
+All actions talk to the new `/characters/{name}/documents` endpoints that ship with the
+FastAPI server, so no extra configuration is required beyond running both apps.
+
 ## Production build
 
 ```bash
