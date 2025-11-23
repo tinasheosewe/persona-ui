@@ -42,16 +42,6 @@ const formatSize = (bytes: number): string => {
   return `${(kb / 1024).toFixed(1)} MB`;
 };
 
-const formatTimestamp = (iso: string): string => {
-  try {
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return "Unknown";
-    return date.toLocaleString();
-  } catch {
-    return "Unknown";
-  }
-};
-
 export function PersonaStudioManager({ className }: { className?: string }) {
   const baseUrl = useMemo(() => resolveFastApiBaseUrl(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -359,7 +349,6 @@ export function PersonaStudioManager({ className }: { className?: string }) {
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="py-2">Name</th>
-                  <th className="py-2">Slug</th>
                   <th className="py-2">Documents</th>
                   <th className="py-2 text-right">Actions</th>
                 </tr>
@@ -367,13 +356,13 @@ export function PersonaStudioManager({ className }: { className?: string }) {
               <tbody>
                 {isLoadingPersonas ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-muted-foreground">
+                    <td colSpan={3} className="py-4 text-center text-muted-foreground">
                       <Loader2Icon className="inline h-4 w-4 animate-spin" /> Loading personas…
                     </td>
                   </tr>
                 ) : !personas.length ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-muted-foreground">
+                    <td colSpan={3} className="py-4 text-center text-muted-foreground">
                       No personas available.
                     </td>
                   </tr>
@@ -381,7 +370,6 @@ export function PersonaStudioManager({ className }: { className?: string }) {
                   personas.map((persona) => (
                     <tr key={persona.id} className="border-t border-border/50">
                       <td className="py-3 font-medium">{persona.display_name}</td>
-                      <td className="py-3 text-muted-foreground">{persona.slug}</td>
                       <td className="py-3">{persona.document_count}</td>
                       <td className="py-3">
                         <div className="flex flex-col justify-end gap-2 sm:flex-row">
@@ -525,7 +513,6 @@ export function PersonaStudioManager({ className }: { className?: string }) {
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <span>{formatSize(document.size_bytes)}</span>
-                        <span>{formatTimestamp(document.updated_at)}</span>
                       </div>
                       <div className="flex gap-2">
                         <Button
