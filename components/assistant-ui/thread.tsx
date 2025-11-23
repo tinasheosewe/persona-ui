@@ -7,27 +7,36 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
 } from "@assistant-ui/react";
-import type { FC } from "react";
+import { FC, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownIcon,
   CheckIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CogIcon,
   Loader2Icon,
   CopyIcon,
+  PlusIcon,
   PencilIcon,
   RefreshCwIcon,
   SendHorizontalIcon,
   SparklesIcon,
+  XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { useCharacterOptions } from "@/app/MyRuntimeProvider";
+import { usePersonaOptions } from "@/app/MyRuntimeProvider";
+import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
+import { PersonaStudioManager } from "@/components/persona-studio/PersonaStudioManager";
 
 export const Thread: FC = () => {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   return (
     <ThreadPrimitive.Root
       className="bg-background box-border flex h-full min-h-0 flex-1 flex-col overflow-hidden"
@@ -35,13 +44,10 @@ export const Thread: FC = () => {
         ["--thread-max-width" as string]: "42rem",
       }}
     >
-      <div className="flex flex-shrink-0 items-center justify-center border-b border-border/60 bg-background/80 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/50">
-        <div className="w-full max-w-[var(--thread-max-width)]">
-          <CharacterSelector />
-        </div>
-      </div>
+      <PersonaBubble onAdd={() => setIsAddModalOpen(true)} />
+      <SettingsShortcut onOpen={() => setIsSettingsOpen(true)} />
 
-  <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 py-6">
+      <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pb-6 pt-24">
         <div className="mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col">
           <ThreadWelcome />
 
@@ -65,7 +71,310 @@ export const Thread: FC = () => {
           <Composer />
         </div>
       </div>
+
+      <AddPersonaModal open={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+      <PersonaSettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </ThreadPrimitive.Root>
+  );
+};
+
+const PersonaBubble: FC<{ onAdd: () => void }> = ({ onAdd }) => {
+  const {
+    personas,
+    selectedPersona,
+    selectPersona,
+    isLoadingPersonas,
+    personasError,
+  } = usePersonaOptions();
+
+  const hasPersonas = personas.length > 0;
+  const selectDisabled = isLoadingPersonas || !hasPersonas;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const handleClick = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKeydown);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKeydown);
+    };
+  }, [menuOpen]);
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-30 flex justify-center px-4">
+      <div className="pointer-events-auto flex w-full max-w-xl flex-col gap-1 rounded-full border border-border/70 bg-background/85 px-5 py-3 shadow-lg backdrop-blur">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+            <SparklesIcon className="h-3.5 w-3.5 text-amber-500" />
+            Persona
+          </div>
+          <div className="flex flex-1 items-center gap-2">
+            <div className="relative flex-1" ref={dropdownRef}>
+              <button
+                type="button"
+                className={cn(
+                  "flex w-full items-center justify-between gap-2 rounded-full border border-border/50 bg-background/80 px-4 py-1.5 text-sm font-medium transition",
+                  selectDisabled && "pointer-events-none opacity-60",
+                )}
+                aria-haspopup="listbox"
+                aria-expanded={menuOpen}
+                onClick={() => {
+                  if (selectDisabled) return;
+                  setMenuOpen((prev) => !prev);
+                }}
+              >
+                <span className="truncate">
+                  {selectedPersona?.displayName ?? (hasPersonas ? "Select a persona" : "No personas found")}
+                </span>
+                <ChevronDownIcon
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    menuOpen && "rotate-180",
+                  )}
+                />
+              </button>
+              {menuOpen && (
+                <div className="absolute left-0 right-0 top-full z-10 mt-2 rounded-2xl border border-border/60 bg-background/95 shadow-2xl">
+                  <div className="max-h-60 overflow-y-auto px-1 py-2">
+                    {isLoadingPersonas ? (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">Loading personas…</p>
+                    ) : !hasPersonas ? (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">No personas available.</p>
+                    ) : (
+                      <ul role="listbox" className="space-y-1">
+                        {personas.map((persona) => (
+                          <li key={persona.id}>
+                            <button
+                              type="button"
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-accent",
+                                selectedPersona?.id === persona.id && "bg-accent text-accent-foreground",
+                              )}
+                              onClick={() => {
+                                selectPersona(persona.id);
+                                setMenuOpen(false);
+                              }}
+                            >
+                              <span className="truncate">{persona.displayName}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {persona.documentCount} doc{persona.documentCount === 1 ? "" : "s"}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            {isLoadingPersonas && (
+              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full border-border/60"
+              onClick={onAdd}
+            >
+              Add new
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SettingsShortcut: FC<{ onOpen: () => void }> = ({ onOpen }) => {
+  return (
+    <div className="fixed right-6 top-6 z-30">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="rounded-full border-border/70 bg-background/80 shadow-lg backdrop-blur"
+        onClick={onOpen}
+        aria-label="Open persona settings"
+      >
+        <CogIcon className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
+
+const AddPersonaModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  const { refreshPersonas, selectPersona } = usePersonaOptions();
+  const baseUrl = useMemo(() => resolveFastApiBaseUrl(), []);
+  const [newPersonaName, setNewPersonaName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setNewPersonaName("");
+      setFeedback(null);
+    }
+  }, [open]);
+
+  if (!open) {
+    return null;
+  }
+
+  const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = newPersonaName.trim();
+    if (!trimmed) {
+      setFeedback({ type: "error", message: "Enter a persona name first." });
+      return;
+    }
+    setIsSubmitting(true);
+    setFeedback(null);
+    try {
+      const response = await fetch(`${baseUrl}/characters`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ display_name: trimmed }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to create persona (${response.status})`);
+      }
+      const payload: { id: string; display_name: string } = await response.json();
+      setNewPersonaName("");
+      await refreshPersonas();
+      selectPersona(payload.id);
+      setFeedback({ type: "success", message: `Created “${payload.display_name}”.` });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Unable to create persona.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4 py-6"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-lg rounded-3xl border border-border/70 bg-background/95 p-6 shadow-2xl backdrop-blur"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              Persona studio
+            </p>
+            <h3 className="text-2xl font-semibold">Add new persona</h3>
+            <p className="text-sm text-muted-foreground">
+              Give it a name and start chatting immediately.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={onClose}
+            aria-label="Close add persona modal"
+          >
+            <XIcon className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <form onSubmit={handleCreate} className="mt-6 flex flex-col gap-3">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Persona name
+          </label>
+          <input
+            type="text"
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={newPersonaName}
+            onChange={(event) => setNewPersonaName(event.target.value)}
+            disabled={isSubmitting}
+            placeholder="e.g. Pitch Whisperer"
+            autoFocus
+          />
+          <Button type="submit" disabled={isSubmitting} className="gap-2">
+            {isSubmitting ? <Loader2Icon className="h-4 w-4 animate-spin" /> : <PlusIcon className="h-4 w-4" />}
+            Create persona
+          </Button>
+        </form>
+
+        {feedback && (
+          <p
+            className={cn(
+              "mt-4 text-sm",
+              feedback.type === "success" ? "text-green-500" : "text-red-500",
+            )}
+          >
+            {feedback.message}
+          </p>
+        )}
+
+        <div className="mt-4 text-sm text-muted-foreground">
+          Need deeper control? Use the settings cog (top right) to fine-tune knowledge and documents.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-6"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-6xl rounded-3xl border border-border/70 bg-background/95 shadow-2xl backdrop-blur"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              Persona studio
+            </p>
+            <h3 className="text-2xl font-semibold">Full settings</h3>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={onClose}
+            aria-label="Close settings"
+          >
+            <XIcon className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="max-h-[80vh] overflow-y-auto px-1 pb-4">
+          <PersonaStudioManager className="px-6 pb-6" />
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -96,12 +405,12 @@ const ThreadWelcome: FC = () => {
 };
 
 const Composer: FC = () => {
-  const { isLoadingCharacters, selectedCharacter } = useCharacterOptions();
-  const composerDisabled = isLoadingCharacters || !selectedCharacter;
-  const placeholder = isLoadingCharacters
-    ? "Loading characters..."
-    : !selectedCharacter
-      ? "Select a character to start"
+  const { isLoadingPersonas, selectedPersona } = usePersonaOptions();
+  const composerDisabled = isLoadingPersonas || !selectedPersona;
+  const placeholder = isLoadingPersonas
+    ? "Loading personas..."
+    : !selectedPersona
+      ? "Select a persona to start"
       : "Write a message...";
 
   return (
@@ -266,72 +575,6 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
         </TooltipIconButton>
       </BranchPickerPrimitive.Next>
     </BranchPickerPrimitive.Root>
-  );
-};
-
-const CharacterSelector: FC<{ className?: string }> = ({ className }) => {
-  const {
-    characters,
-    selectedCharacter,
-    selectCharacter,
-    isLoadingCharacters,
-    charactersError,
-  } = useCharacterOptions();
-
-  const hasCharacters = characters.length > 0;
-  const selectDisabled = isLoadingCharacters || !hasCharacters;
-  const personaStatus = charactersError
-    ? charactersError
-    : selectedCharacter
-      ? `${selectedCharacter.documentCount} document${selectedCharacter.documentCount === 1 ? "" : "s"}`
-      : hasCharacters
-        ? "Choose a persona to chat"
-        : "No personas available";
-
-  return (
-    <div
-      className={cn(
-        "flex w-full flex-col gap-2 rounded-2xl border border-border/60 bg-card/70 px-3 py-2 text-sm shadow-sm sm:flex-row sm:items-center sm:gap-4",
-        className,
-      )}
-    >
-      <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-muted-foreground">
-        <SparklesIcon className="h-3.5 w-3.5 text-amber-500" />
-        Persona
-      </div>
-      <div className="flex flex-1 flex-wrap items-center gap-2">
-        <select
-          className="flex-1 min-w-[160px] rounded-full border border-border/50 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground transition focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-          value={selectedCharacter?.id ?? ""}
-          onChange={(event) => selectCharacter(event.target.value)}
-          disabled={selectDisabled}
-        >
-          <option value="" disabled>
-            {isLoadingCharacters
-              ? "Loading personas..."
-              : hasCharacters
-                ? "Select a persona"
-                : "No personas found"}
-          </option>
-          {characters.map((character) => (
-            <option key={character.id} value={character.id}>
-              {character.displayName}
-            </option>
-          ))}
-        </select>
-        {isLoadingCharacters && (
-          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-        )}
-      </div>
-      <div
-        className={cn(
-          "text-xs text-muted-foreground sm:text-right",
-          charactersError && "text-red-500",
-        )}
-      >
-        {personaStatus}
-      </div>
-    </div>
   );
 };
 

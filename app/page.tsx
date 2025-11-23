@@ -10,18 +10,16 @@ export default function Home() {
 
   return (
     <main className="flex h-full min-h-0 flex-1 flex-col bg-background md:flex-row">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
+      {!sidebarOpen && (
         <button
           type="button"
           aria-label="Open chat list"
           onClick={() => setSidebarOpen(true)}
-          className="inline-flex size-10 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-sm"
+          className="md:hidden fixed left-4 top-4 z-30 inline-flex size-10 items-center justify-center rounded-full border border-border bg-card/90 text-foreground shadow-lg backdrop-blur"
         >
           <MenuIcon className="h-5 w-5" />
         </button>
-        <p className="text-sm font-semibold">Chatbot</p>
-        <span className="inline-block size-10" aria-hidden />
-      </div>
+      )}
 
       <div className="relative flex flex-1 min-h-0 overflow-hidden">
         {sidebarOpen && (

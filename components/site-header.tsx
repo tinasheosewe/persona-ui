@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/", label: "Chat" },
-  { href: "/characters", label: "Characters" },
+  { href: "/characters", label: "Personas" },
 ];
 
 export function SiteHeader() {
@@ -18,7 +18,7 @@ export function SiteHeader() {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Character Chatbot
+            Persona Studio
           </p>
           <p className="text-base font-semibold">Control Center</p>
         </div>

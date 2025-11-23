@@ -115,7 +115,7 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
                     Session {session.sessionId.slice(-6)}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {session.characterName} · {formatTimestamp(session.updatedAt)}
+                    {session.personaName} · {formatTimestamp(session.updatedAt)}
                   </p>
                   {session.preview && (
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-1">

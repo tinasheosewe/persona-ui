@@ -31,23 +31,34 @@ const createClientId = (fallbackPrefix: string) => {
 
 const createSessionId = () => createClientId("session");
 const createMessageId = () => createClientId("msg");
-const CHARACTER_STORAGE_KEY = "chatbot.selectedCharacter";
+const PERSONA_STORAGE_KEY = "chatbot.selectedPersona";
+const LEGACY_CHARACTER_STORAGE_KEY = "chatbot.selectedCharacter";
 
-const getStoredCharacter = (): string | null => {
+const getStoredPersona = (): string | null => {
   if (typeof window === "undefined") {
     return null;
   }
-  return window.sessionStorage.getItem(CHARACTER_STORAGE_KEY);
+  const storedPersona = window.sessionStorage.getItem(PERSONA_STORAGE_KEY);
+  if (storedPersona) {
+    return storedPersona;
+  }
+  const legacy = window.sessionStorage.getItem(LEGACY_CHARACTER_STORAGE_KEY);
+  if (legacy) {
+    window.sessionStorage.setItem(PERSONA_STORAGE_KEY, legacy);
+    window.sessionStorage.removeItem(LEGACY_CHARACTER_STORAGE_KEY);
+    return legacy;
+  }
+  return null;
 };
 
-const persistCharacter = (value: string | null) => {
+const persistPersona = (value: string | null) => {
   if (typeof window === "undefined") {
     return;
   }
   if (value) {
-    window.sessionStorage.setItem(CHARACTER_STORAGE_KEY, value);
+    window.sessionStorage.setItem(PERSONA_STORAGE_KEY, value);
   } else {
-    window.sessionStorage.removeItem(CHARACTER_STORAGE_KEY);
+    window.sessionStorage.removeItem(PERSONA_STORAGE_KEY);
   }
 };
 
@@ -60,19 +71,20 @@ const getMessageText = (message: ThreadMessageLike): string => {
   return textPart?.text ?? "";
 };
 
-export type CharacterOption = {
+export type PersonaOption = {
   id: string;
   slug: string;
   displayName: string;
   documentCount: number;
 };
 
-type CharacterContextValue = {
-  characters: readonly CharacterOption[];
-  selectedCharacter: CharacterOption | null;
-  selectCharacter: (characterId: string) => void;
-  isLoadingCharacters: boolean;
-  charactersError: string | null;
+type PersonaContextValue = {
+  personas: readonly PersonaOption[];
+  selectedPersona: PersonaOption | null;
+  selectPersona: (personaId: string) => void;
+  isLoadingPersonas: boolean;
+  personasError: string | null;
+  refreshPersonas: () => Promise<void>;
 };
 
 type SessionLogEntryModel = {
@@ -90,7 +102,7 @@ type SessionLogModel = {
 type SessionSummary = {
   sessionId: string;
   updatedAt: string;
-  characterName: string;
+  personaName: string;
   preview: string | null;
 };
 
@@ -104,12 +116,12 @@ type SessionHistoryContextValue = {
   activeSessionId: string;
 };
 
-const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
+const PersonaContext = createContext<PersonaContextValue | undefined>(undefined);
 const SessionHistoryContext = createContext<SessionHistoryContextValue | undefined>(undefined);
-export const useCharacterOptions = (): CharacterContextValue => {
-  const context = useContext(CharacterContext);
+export const usePersonaOptions = (): PersonaContextValue => {
+  const context = useContext(PersonaContext);
   if (!context) {
-    throw new Error("useCharacterOptions must be used within MyRuntimeProvider");
+    throw new Error("usePersonaOptions must be used within MyRuntimeProvider");
   }
   return context;
 };
@@ -132,13 +144,13 @@ export function MyRuntimeProvider({
   const [isRunning, setIsRunning] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastAssistantMessageIdRef = useRef<string | null>(null);
-  const [characters, setCharacters] = useState<readonly CharacterOption[]>([]);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
-    () => getStoredCharacter(),
+  const [personas, setPersonas] = useState<readonly PersonaOption[]>([]);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(
+    () => getStoredPersona(),
   );
-  const hasHydratedStoredCharacterRef = useRef(false);
-  const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(true);
-  const [charactersError, setCharactersError] = useState<string | null>(null);
+  const hasHydratedStoredPersonaRef = useRef(false);
+  const [isLoadingPersonas, setIsLoadingPersonas] = useState<boolean>(true);
+  const [personasError, setPersonasError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
@@ -185,84 +197,68 @@ export function MyRuntimeProvider({
 
   const baseUrl = useMemo(() => resolveFastApiBaseUrl(), []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
+  const refreshPersonas = useCallback(async () => {
+    setIsLoadingPersonas(true);
+    setPersonasError(null);
+    try {
+      const response = await fetch(`${baseUrl}/characters`);
 
-    const loadCharacters = async () => {
-      setIsLoadingCharacters(true);
-      setCharactersError(null);
-      try {
-        const response = await fetch(`${baseUrl}/characters`, {
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to load characters (${response.status})`);
-        }
-
-        const payload: {
-          characters?: Array<{
-            id: string;
-            slug: string;
-            display_name: string;
-            document_count: number;
-          }>;
-        } = await response.json();
-        const nextCharacters: CharacterOption[] = Array.isArray(payload.characters)
-          ? payload.characters.map((character) => ({
-              id: character.id,
-              slug: character.slug,
-              displayName: character.display_name,
-              documentCount: character.document_count,
-            }))
-          : [];
-        if (!nextCharacters.length) {
-          throw new Error("No characters available from the server");
-        }
-
-        if (!cancelled) {
-          setCharacters(nextCharacters);
-          setSelectedCharacterId((current) => {
-            const stored = getStoredCharacter();
-            if (stored && nextCharacters.some((character) => character.id === stored)) {
-              return stored;
-            }
-            if (current && nextCharacters.some((character) => character.id === current)) {
-              return current;
-            }
-            return nextCharacters[0]?.id ?? null;
-          });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setCharacters([]);
-          setSelectedCharacterId(null);
-          persistCharacter(null);
-          setCharactersError(
-            error instanceof Error ? error.message : "Unable to load characters.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingCharacters(false);
-        }
+      if (!response.ok) {
+        throw new Error(`Failed to load personas (${response.status})`);
       }
-    };
 
-    void loadCharacters();
+      const payload: {
+        characters?: Array<{
+          id: string;
+          slug: string;
+          display_name: string;
+          document_count: number;
+        }>;
+      } = await response.json();
+      const nextPersonas: PersonaOption[] = Array.isArray(payload.characters)
+        ? payload.characters.map((character) => ({
+            id: character.id,
+            slug: character.slug,
+            displayName: character.display_name,
+            documentCount: character.document_count,
+          }))
+        : [];
+      if (!nextPersonas.length) {
+        throw new Error("No personas available from the server");
+      }
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
+      setPersonas(nextPersonas);
+      setSelectedPersonaId((current) => {
+        const stored = getStoredPersona();
+        if (stored && nextPersonas.some((persona) => persona.id === stored)) {
+          return stored;
+        }
+        if (current && nextPersonas.some((persona) => persona.id === current)) {
+          return current;
+        }
+        return nextPersonas[0]?.id ?? null;
+      });
+    } catch (error) {
+      setPersonas([]);
+      setSelectedPersonaId(null);
+      persistPersona(null);
+      setPersonasError(
+        error instanceof Error ? error.message : "Unable to load personas.",
+      );
+    } finally {
+      setIsLoadingPersonas(false);
+    }
   }, [baseUrl]);
 
-  const selectCharacter = useCallback(
-    (characterId: string) => {
+  useEffect(() => {
+    void refreshPersonas();
+  }, [refreshPersonas]);
+
+  const selectPersona = useCallback(
+    (personaId: string) => {
       if (
-        !characters.some((character) => character.id === characterId) ||
-        characterId === selectedCharacterId
+        !personas.some((persona) => persona.id === personaId) ||
+        personaId === selectedPersonaId
       ) {
         return;
       }
@@ -272,28 +268,28 @@ export function MyRuntimeProvider({
       setSessionId(createSessionId());
       lastAssistantMessageIdRef.current = null;
 
-      setSelectedCharacterId(characterId);
-      persistCharacter(characterId);
+      setSelectedPersonaId(personaId);
+      persistPersona(personaId);
     },
-    [characters, handleCancel, selectedCharacterId],
+    [personas, handleCancel, selectedPersonaId],
   );
 
   useEffect(() => {
-    if (!hasHydratedStoredCharacterRef.current) {
-      if (selectedCharacterId === null) {
+    if (!hasHydratedStoredPersonaRef.current) {
+      if (selectedPersonaId === null) {
         return;
       }
-      hasHydratedStoredCharacterRef.current = true;
+      hasHydratedStoredPersonaRef.current = true;
     }
-    persistCharacter(selectedCharacterId);
-  }, [selectedCharacterId]);
+    persistPersona(selectedPersonaId);
+  }, [selectedPersonaId]);
 
-  const selectedCharacter = useMemo(() => {
-    if (!selectedCharacterId) {
+  const selectedPersona = useMemo(() => {
+    if (!selectedPersonaId) {
       return null;
     }
-    return characters.find((character) => character.id === selectedCharacterId) ?? null;
-  }, [characters, selectedCharacterId]);
+    return personas.find((persona) => persona.id === selectedPersonaId) ?? null;
+  }, [personas, selectedPersonaId]);
 
   const refreshSessions = useCallback(async () => {
     setIsLoadingSessions(true);
@@ -313,7 +309,7 @@ export function MyRuntimeProvider({
         return {
           sessionId: session.session_id,
           updatedAt: latestEntry?.timestamp ?? new Date().toISOString(),
-          characterName: latestEntry?.character_name ?? "Unknown",
+          personaName: latestEntry?.character_name ?? "Unknown",
           preview: previewText,
         };
       });
@@ -385,15 +381,23 @@ export function MyRuntimeProvider({
     void refreshSessions();
   }, [refreshSessions]);
 
-  const characterContextValue = useMemo<CharacterContextValue>(
+  const personaContextValue = useMemo<PersonaContextValue>(
     () => ({
-      characters,
-      selectedCharacter,
-      selectCharacter,
-      isLoadingCharacters,
-      charactersError,
+      personas,
+      selectedPersona,
+      selectPersona,
+      isLoadingPersonas,
+      personasError,
+      refreshPersonas,
     }),
-    [characters, selectedCharacter, selectCharacter, isLoadingCharacters, charactersError],
+    [
+      personas,
+      selectedPersona,
+      selectPersona,
+      isLoadingPersonas,
+      personasError,
+      refreshPersonas,
+    ],
   );
 
   const sessionHistoryContextValue = useMemo<SessionHistoryContextValue>(
@@ -442,8 +446,8 @@ export function MyRuntimeProvider({
         return;
       }
 
-      if (!selectedCharacter) {
-        console.warn("A character must be selected before sending messages.");
+      if (!selectedPersona) {
+        console.warn("A persona must be selected before sending messages.");
         return;
       }
 
@@ -477,7 +481,7 @@ export function MyRuntimeProvider({
             message: text,
             session_id: sessionId,
             verbose: false,
-            character_id: selectedCharacter.id,
+            character_id: selectedPersona.id,
           }),
           signal: controller.signal,
         });
@@ -575,7 +579,7 @@ export function MyRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [appendMessage, baseUrl, refreshSessions, selectedCharacter, sessionId, setAssistantText],
+    [appendMessage, baseUrl, refreshSessions, selectedPersona, sessionId, setAssistantText],
   );
 
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
@@ -588,10 +592,10 @@ export function MyRuntimeProvider({
   });
 
   return (
-    <CharacterContext.Provider value={characterContextValue}>
+    <PersonaContext.Provider value={personaContextValue}>
       <SessionHistoryContext.Provider value={sessionHistoryContextValue}>
         <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
       </SessionHistoryContext.Provider>
-    </CharacterContext.Provider>
+    </PersonaContext.Provider>
   );
 }
