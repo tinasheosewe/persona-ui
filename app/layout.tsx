@@ -16,11 +16,13 @@ export default function RootLayout({
 }>) {
   return (
     <MyRuntimeProvider>
-      <html lang="en" className="h-dvh">
-        <body className="h-dvh bg-background font-sans text-foreground">
+      <html lang="en" className="h-dvh overflow-hidden">
+        <body className="h-dvh overflow-hidden bg-background font-sans text-foreground">
           <div className="flex h-full flex-col">
-            <SiteHeader />
-            <div className="flex-1 overflow-y-auto">{children}</div>
+            <div className="flex-shrink-0">
+              <SiteHeader />
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
           </div>
         </body>
       </html>

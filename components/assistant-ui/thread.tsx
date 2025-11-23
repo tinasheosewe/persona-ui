@@ -29,33 +29,41 @@ import { useCharacterOptions } from "@/app/MyRuntimeProvider";
 export const Thread: FC = () => {
   return (
     <ThreadPrimitive.Root
-      className="bg-background box-border flex h-full flex-col overflow-hidden"
+      className="bg-background box-border flex h-full min-h-0 flex-1 flex-col overflow-hidden"
       style={{
         ["--thread-max-width" as string]: "42rem",
       }}
     >
-      <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
-  <CharacterSelector />
+      <div className="flex flex-shrink-0 items-center justify-center border-b border-border bg-background/95 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="w-full max-w-[var(--thread-max-width)]">
+          <CharacterSelector className="mb-0" />
+        </div>
+      </div>
 
-  <ThreadWelcome />
+  <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 py-6">
+        <div className="mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col">
+          <ThreadWelcome />
 
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage: UserMessage,
-            EditComposer: EditComposer,
-            AssistantMessage: AssistantMessage,
-          }}
-        />
+          <ThreadPrimitive.Messages
+            components={{
+              UserMessage: UserMessage,
+              EditComposer: EditComposer,
+              AssistantMessage: AssistantMessage,
+            }}
+          />
 
-        <ThreadPrimitive.If empty={false}>
-          <div className="min-h-8 flex-grow" />
-        </ThreadPrimitive.If>
+          <ThreadPrimitive.If empty={false}>
+            <div className="min-h-8" />
+          </ThreadPrimitive.If>
+        </div>
+      </ThreadPrimitive.Viewport>
 
-        <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
+      <div className="flex flex-shrink-0 items-center justify-center border-t border-border bg-background/95 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="relative w-full max-w-[var(--thread-max-width)]">
           <ThreadScrollToBottom />
           <Composer />
         </div>
-      </ThreadPrimitive.Viewport>
+      </div>
     </ThreadPrimitive.Root>
   );
 };
@@ -66,7 +74,7 @@ const ThreadScrollToBottom: FC = () => {
       <TooltipIconButton
         tooltip="Scroll to bottom"
         variant="outline"
-        className="absolute -top-8 rounded-full disabled:invisible"
+        className="absolute -top-10 right-4 rounded-full shadow-sm transition-opacity disabled:pointer-events-none disabled:opacity-0"
       >
         <ArrowDownIcon />
       </TooltipIconButton>
@@ -260,7 +268,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   );
 };
 
-const CharacterSelector: FC = () => {
+const CharacterSelector: FC<{ className?: string }> = ({ className }) => {
   const {
     characters,
     selectedCharacter,
@@ -273,7 +281,12 @@ const CharacterSelector: FC = () => {
   const selectDisabled = isLoadingCharacters || !hasCharacters;
 
   return (
-  <div className="self-start w-full max-w-[var(--thread-max-width)] rounded-lg border border-border bg-card/60 p-4 text-sm mb-6">
+    <div
+      className={cn(
+        "self-start w-full rounded-lg border border-border bg-card/60 p-4 text-sm",
+        className,
+      )}
+    >
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Character
       </p>

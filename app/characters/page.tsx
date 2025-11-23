@@ -321,9 +321,10 @@ export default function CharacterManagerPage() {
   const disabled = isLoadingCharacters || characters.length === 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
-      <section className="rounded-lg border border-border bg-card/70 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-6 overflow-hidden px-4 py-6">
+      <div className="grid flex-1 min-h-0 gap-6 md:grid-cols-2">
+        <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm">
+        <div className="flex flex-shrink-0 flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Character roster
@@ -353,7 +354,7 @@ export default function CharacterManagerPage() {
             </div>
           </form>
         </div>
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-6 flex-1 min-h-0 overflow-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -383,7 +384,7 @@ export default function CharacterManagerPage() {
                     <td className="py-3 text-muted-foreground">{character.slug}</td>
                     <td className="py-3">{character.document_count}</td>
                     <td className="py-3">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-col justify-end gap-2 sm:flex-row">
                         <Button
                           type="button"
                           variant="ghost"
@@ -411,7 +412,7 @@ export default function CharacterManagerPage() {
           </table>
         </div>
         {(characterActionMessage || characterActionError || charactersError) && (
-          <div className="mt-4 space-y-1 text-sm">
+          <div className="mt-4 flex-shrink-0 space-y-1 text-sm">
             {characterActionMessage && <p className="text-green-600">{characterActionMessage}</p>}
             {characterActionError && <p className="text-red-500">{characterActionError}</p>}
             {charactersError && <p className="text-red-500">{charactersError}</p>}
@@ -419,8 +420,8 @@ export default function CharacterManagerPage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-border bg-card/70 p-5 shadow-sm">
-        <div className="flex flex-col gap-2">
+        <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm">
+        <div className="flex flex-shrink-0 flex-col gap-2">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -447,8 +448,9 @@ export default function CharacterManagerPage() {
             New uploads trigger a full vector rebuild and are available in chat once that completes.
           </p>
         </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
+        <div className="mt-5 flex-1 min-h-0 space-y-4 overflow-auto pr-1">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Character
             </label>
@@ -474,8 +476,8 @@ export default function CharacterManagerPage() {
             {charactersError && (
               <p className="text-xs text-red-500">{charactersError}</p>
             )}
-          </div>
-          <div className="space-y-2">
+            </div>
+            <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Upload document
             </label>
@@ -491,26 +493,28 @@ export default function CharacterManagerPage() {
             <p className="text-xs text-muted-foreground">
               Supported types: .txt, .pdf, .docx, .epub and more via Unstructured processors.
             </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {isUploading && (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+                Uploading and vectorizing document… this may take a moment.
+              </p>
+            )}
+            {successMessage && (
+              <p className="text-sm text-green-600">{successMessage}</p>
+            )}
+            {documentsError && (
+              <p className="text-sm text-red-500">{documentsError}</p>
+            )}
           </div>
         </div>
-        <div className="mt-4 space-y-2">
-          {isUploading && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-              Uploading and vectorizing document… this may take a moment.
-            </p>
-          )}
-          {successMessage && (
-            <p className="text-sm text-green-600">{successMessage}</p>
-          )}
-          {documentsError && (
-            <p className="text-sm text-red-500">{documentsError}</p>
-          )}
-        </div>
       </section>
+      </div>
 
-      <section className="rounded-lg border border-border bg-card/70 p-5 shadow-sm">
-        <div className="flex items-center justify-between">
+      <section className="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card/70 p-5 shadow-sm">
+        <div className="flex flex-shrink-0 items-center justify-between">
           <h2 className="text-lg font-semibold">Documents</h2>
           {selectedCharacter && (
             <p className="text-sm text-muted-foreground">
@@ -518,72 +522,74 @@ export default function CharacterManagerPage() {
             </p>
           )}
         </div>
-        {isLoadingDocuments ? (
-          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-            <Loader2Icon className="h-4 w-4 animate-spin" />
-            Loading documents…
-          </div>
-        ) : !documents.length ? (
-          <p className="py-6 text-sm text-muted-foreground">
-            {selectedCharacter
-              ? "No documents found for this character."
-              : "Select a character to view documents."}
-          </p>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="py-2">Filename</th>
-                  <th className="py-2">Size</th>
-                  <th className="py-2">Updated</th>
-                  <th className="py-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.map((document) => (
-                  <tr
-                    key={document.relative_path}
-                    className="border-t border-border/50 text-sm"
-                  >
-                    <td className="py-3">
-                      <p className="font-medium">{document.filename}</p>
-                      {document.relative_path !== document.filename && (
-                        <p className="text-xs text-muted-foreground">
-                          {document.relative_path}
-                        </p>
-                      )}
-                    </td>
-                    <td>{formatSize(document.size_bytes)}</td>
-                    <td>{formatTimestamp(document.updated_at)}</td>
-                    <td>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpen(document)}
-                        >
-                          <ExternalLinkIcon className="h-4 w-4" />
-                          Open
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDelete(document.relative_path)}
-                        >
-                          <Trash2Icon className="h-4 w-4" />
-                          Remove
-                        </Button>
-                      </div>
-                    </td>
+        <div className="mt-4 flex-1 min-h-0 overflow-auto">
+          {isLoadingDocuments ? (
+            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2Icon className="h-4 w-4 animate-spin" />
+              Loading documents…
+            </div>
+          ) : !documents.length ? (
+            <p className="py-6 text-sm text-muted-foreground">
+              {selectedCharacter
+                ? "No documents found for this character."
+                : "Select a character to view documents."}
+            </p>
+          ) : (
+            <div className="min-w-full overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="py-2">Filename</th>
+                    <th className="py-2">Size</th>
+                    <th className="py-2">Updated</th>
+                    <th className="py-2 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {documents.map((document) => (
+                    <tr
+                      key={document.relative_path}
+                      className="border-t border-border/50 text-sm"
+                    >
+                      <td className="py-3">
+                        <p className="font-medium">{document.filename}</p>
+                        {document.relative_path !== document.filename && (
+                          <p className="text-xs text-muted-foreground">
+                            {document.relative_path}
+                          </p>
+                        )}
+                      </td>
+                      <td>{formatSize(document.size_bytes)}</td>
+                      <td>{formatTimestamp(document.updated_at)}</td>
+                      <td>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpen(document)}
+                          >
+                            <ExternalLinkIcon className="h-4 w-4" />
+                            Open
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(document.relative_path)}
+                          >
+                            <Trash2Icon className="h-4 w-4" />
+                            Remove
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

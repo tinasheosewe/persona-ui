@@ -9,7 +9,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <main className="flex min-h-full flex-col bg-background md:flex-row">
+    <main className="flex h-full min-h-0 flex-1 flex-col bg-background md:flex-row">
       <div className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden">
         <button
           type="button"
@@ -23,7 +23,7 @@ export default function Home() {
         <span className="inline-block size-10" aria-hidden />
       </div>
 
-      <div className="relative flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
         {sidebarOpen && (
           <button
             type="button"
@@ -36,7 +36,7 @@ export default function Home() {
           mobileOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
-        <div className="h-full min-w-0 flex-1">
+        <div className="flex h-full min-w-0 flex-1">
           <Thread />
         </div>
       </div>
