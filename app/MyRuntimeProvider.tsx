@@ -106,7 +106,6 @@ type SessionHistoryContextValue = {
 
 const CharacterContext = createContext<CharacterContextValue | undefined>(undefined);
 const SessionHistoryContext = createContext<SessionHistoryContextValue | undefined>(undefined);
-
 export const useCharacterOptions = (): CharacterContextValue => {
   const context = useContext(CharacterContext);
   if (!context) {
@@ -143,6 +142,46 @@ export function MyRuntimeProvider({
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+
+  const setAssistantText = useCallback((messageId: string, nextText: string | ((currentText: string) => string)) => {
+    setMessages((currentMessages) =>
+      currentMessages.map((message) => {
+        if (message.id !== messageId) {
+          return message;
+        }
+
+        const currentText = getMessageText(message);
+        const resolvedText =
+          typeof nextText === "function"
+            ? (nextText as (text: string) => string)(currentText)
+            : nextText;
+
+        return {
+          ...message,
+          content: [{ type: "text", text: resolvedText }],
+        } satisfies ThreadMessageLike;
+      }),
+    );
+  }, []);
+
+  const handleCancel = useCallback(async () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    if (lastAssistantMessageIdRef.current) {
+      const cancelledId = lastAssistantMessageIdRef.current;
+      setAssistantText(cancelledId, (current) => {
+        if (current.trim().length > 0) {
+          return `${current}\n\nRequest canceled.`;
+        }
+        return "Request canceled.";
+      });
+    }
+
+    setIsRunning(false);
+  }, [setAssistantText]);
 
   const baseUrl = useMemo(() => resolveFastApiBaseUrl(), []);
 
@@ -221,16 +260,22 @@ export function MyRuntimeProvider({
 
   const selectCharacter = useCallback(
     (characterId: string) => {
-      if (!characters.some((character) => character.id === characterId) || characterId === selectedCharacterId) {
+      if (
+        !characters.some((character) => character.id === characterId) ||
+        characterId === selectedCharacterId
+      ) {
         return;
       }
+
+      void handleCancel();
+      setMessages([]);
+      setSessionId(createSessionId());
+      lastAssistantMessageIdRef.current = null;
+
       setSelectedCharacterId(characterId);
       persistCharacter(characterId);
-      if (typeof window !== "undefined") {
-        window.location.reload();
-      }
     },
-    [characters, selectedCharacterId],
+    [characters, handleCancel, selectedCharacterId],
   );
 
   useEffect(() => {
@@ -384,46 +429,6 @@ export function MyRuntimeProvider({
     },
     [],
   );
-
-  const setAssistantText = useCallback((messageId: string, nextText: string | ((currentText: string) => string)) => {
-    setMessages((currentMessages) =>
-      currentMessages.map((message) => {
-        if (message.id !== messageId) {
-          return message;
-        }
-
-        const currentText = getMessageText(message);
-        const resolvedText =
-          typeof nextText === "function"
-            ? (nextText as (text: string) => string)(currentText)
-            : nextText;
-
-        return {
-          ...message,
-          content: [{ type: "text", text: resolvedText }],
-        } satisfies ThreadMessageLike;
-      }),
-    );
-  }, []);
-
-  const handleCancel = useCallback(async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-
-    if (lastAssistantMessageIdRef.current) {
-      const cancelledId = lastAssistantMessageIdRef.current;
-      setAssistantText(cancelledId, (current) => {
-        if (current.trim().length > 0) {
-          return `${current}\n\nRequest canceled.`;
-        }
-        return "Request canceled.";
-      });
-    }
-
-    setIsRunning(false);
-  }, [setAssistantText]);
 
   const onNew = useCallback(
     async (message: AppendMessage) => {

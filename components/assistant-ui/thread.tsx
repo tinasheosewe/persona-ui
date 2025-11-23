@@ -18,6 +18,7 @@ import {
   PencilIcon,
   RefreshCwIcon,
   SendHorizontalIcon,
+  SparklesIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +35,9 @@ export const Thread: FC = () => {
         ["--thread-max-width" as string]: "42rem",
       }}
     >
-      <div className="flex flex-shrink-0 items-center justify-center border-b border-border bg-background/95 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="flex flex-shrink-0 items-center justify-center border-b border-border/60 bg-background/80 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/50">
         <div className="w-full max-w-[var(--thread-max-width)]">
-          <CharacterSelector className="mb-0" />
+          <CharacterSelector />
         </div>
       </div>
 
@@ -279,30 +280,38 @@ const CharacterSelector: FC<{ className?: string }> = ({ className }) => {
 
   const hasCharacters = characters.length > 0;
   const selectDisabled = isLoadingCharacters || !hasCharacters;
+  const personaStatus = charactersError
+    ? charactersError
+    : selectedCharacter
+      ? `${selectedCharacter.documentCount} document${selectedCharacter.documentCount === 1 ? "" : "s"}`
+      : hasCharacters
+        ? "Choose a persona to chat"
+        : "No personas available";
 
   return (
     <div
       className={cn(
-        "self-start w-full rounded-lg border border-border bg-card/60 p-4 text-sm",
+        "flex w-full flex-col gap-2 rounded-2xl border border-border/60 bg-card/70 px-3 py-2 text-sm shadow-sm sm:flex-row sm:items-center sm:gap-4",
         className,
       )}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Character
-      </p>
-      <div className="mt-2 flex items-center gap-3">
+      <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.45em] text-muted-foreground">
+        <SparklesIcon className="h-3.5 w-3.5 text-amber-500" />
+        Persona
+      </div>
+      <div className="flex flex-1 flex-wrap items-center gap-2">
         <select
-          className="flex-grow rounded-md border border-input bg-background px-3 py-2 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex-1 min-w-[160px] rounded-full border border-border/50 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground transition focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           value={selectedCharacter?.id ?? ""}
           onChange={(event) => selectCharacter(event.target.value)}
           disabled={selectDisabled}
         >
           <option value="" disabled>
             {isLoadingCharacters
-              ? "Loading characters..."
+              ? "Loading personas..."
               : hasCharacters
-                ? "Select a character"
-                : "No characters available"}
+                ? "Select a persona"
+                : "No personas found"}
           </option>
           {characters.map((character) => (
             <option key={character.id} value={character.id}>
@@ -314,9 +323,14 @@ const CharacterSelector: FC<{ className?: string }> = ({ className }) => {
           <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
         )}
       </div>
-      {charactersError && (
-        <p className="mt-2 text-xs text-red-500">{charactersError}</p>
-      )}
+      <div
+        className={cn(
+          "text-xs text-muted-foreground sm:text-right",
+          charactersError && "text-red-500",
+        )}
+      >
+        {personaStatus}
+      </div>
     </div>
   );
 };
