@@ -125,8 +125,6 @@ export type ReferenceItem = {
 
 type ReferenceContextValue = {
   referencesByMessageId: Record<string, ReferenceItem[]>;
-  latestReferenceMessageId: string | null;
-  setLatestReferenceMessageId: (messageId: string | null) => void;
 };
 
 const PersonaContext = createContext<PersonaContextValue | undefined>(undefined);
@@ -177,10 +175,8 @@ export function MyRuntimeProvider({
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [referencesByMessageId, setReferencesByMessageId] = useState<Record<string, ReferenceItem[]>>({});
-  const [latestReferenceMessageId, setLatestReferenceMessageId] = useState<string | null>(null);
   const resetReferences = useCallback(() => {
     setReferencesByMessageId({});
-    setLatestReferenceMessageId(null);
   }, []);
 
   const setAssistantText = useCallback((messageId: string, nextText: string | ((currentText: string) => string)) => {
@@ -455,10 +451,8 @@ export function MyRuntimeProvider({
   const referencesContextValue = useMemo<ReferenceContextValue>(
     () => ({
       referencesByMessageId,
-      latestReferenceMessageId,
-      setLatestReferenceMessageId,
     }),
-    [referencesByMessageId, latestReferenceMessageId],
+    [referencesByMessageId],
   );
 
   const appendMessage = useCallback(
@@ -587,7 +581,6 @@ export function MyRuntimeProvider({
                     ...current,
                     [messageId]: normalized,
                   }));
-                  setLatestReferenceMessageId(messageId);
                 }
               }
             } else if (payload?.type === "done") {
@@ -652,7 +645,6 @@ export function MyRuntimeProvider({
       sessionId,
       setAssistantText,
       setReferencesByMessageId,
-      setLatestReferenceMessageId,
     ],
   );
 

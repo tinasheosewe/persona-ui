@@ -6,8 +6,19 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAssistantState,
 } from "@assistant-ui/react";
-import { FC, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  FC,
+  FormEvent,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowDownIcon,
   CheckIcon,
@@ -22,6 +33,7 @@ import {
   RefreshCwIcon,
   SendHorizontalIcon,
   SparklesIcon,
+  BookOpenIcon,
   XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,24 +46,52 @@ import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
 import { PersonaStudioManager } from "@/components/persona-studio/PersonaStudioManager";
 import { ReferencesPanel } from "@/components/assistant-ui/references-panel";
 
+type ReferencesSidebarContextValue = {
+  openMessageId: string | null;
+  toggleForMessage: (messageId: string) => void;
+};
+
+const ReferencesSidebarContext = createContext<ReferencesSidebarContextValue | null>(null);
+
+const useReferencesSidebar = (): ReferencesSidebarContextValue => {
+  const context = useContext(ReferencesSidebarContext);
+  if (!context) {
+    throw new Error("useReferencesSidebar must be used within ReferencesSidebarContext");
+  }
+  return context;
+};
+
 export const Thread: FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const { referencesByMessageId, latestReferenceMessageId, setLatestReferenceMessageId } = useReferences();
-  const [isReferencesOpen, setReferencesOpen] = useState(false);
-  const [selectedReferenceMessageId, setSelectedReferenceMessageId] = useState<string | null>(null);
+  const { referencesByMessageId } = useReferences();
+  const [referenceSidebarMessageId, setReferenceSidebarMessageId] = useState<string | null>(null);
+
+  const toggleReferencesForMessage = useCallback((messageId: string) => {
+    setReferenceSidebarMessageId((current) => (current === messageId ? null : messageId));
+  }, []);
 
   useEffect(() => {
-    if (latestReferenceMessageId) {
-      setSelectedReferenceMessageId(latestReferenceMessageId);
+    if (!referenceSidebarMessageId) {
+      return;
     }
-  }, [latestReferenceMessageId]);
+    if (!referencesByMessageId[referenceSidebarMessageId]) {
+      setReferenceSidebarMessageId(null);
+    }
+  }, [referenceSidebarMessageId, referencesByMessageId]);
 
-  const selectedReferences = selectedReferenceMessageId
-    ? referencesByMessageId[selectedReferenceMessageId] ?? []
+  const referencesSidebarValue = useMemo(
+    () => ({
+      openMessageId: referenceSidebarMessageId,
+      toggleForMessage: toggleReferencesForMessage,
+    }),
+    [referenceSidebarMessageId, toggleReferencesForMessage],
+  );
+
+  const activeReferences = referenceSidebarMessageId
+    ? referencesByMessageId[referenceSidebarMessageId] ?? []
     : [];
-  const availableReferenceCount = selectedReferences.length;
-  const hasReferences = Object.keys(referencesByMessageId).length > 0;
+  const isReferencesPanelOpen = referenceSidebarMessageId !== null;
 
   return (
     <ThreadPrimitive.Root
@@ -62,23 +102,20 @@ export const Thread: FC = () => {
     >
       <PersonaBubble onAdd={() => setIsAddModalOpen(true)} />
       <SettingsShortcut onOpen={() => setIsSettingsOpen(true)} />
-      <ReferencesShortcut
-        onOpen={() => setReferencesOpen(true)}
-        disabled={!hasReferences}
-        count={availableReferenceCount}
-      />
 
       <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pb-6 pt-24">
         <div className="mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col">
           <ThreadWelcome />
 
-          <ThreadPrimitive.Messages
-            components={{
-              UserMessage: UserMessage,
-              EditComposer: EditComposer,
-              AssistantMessage: AssistantMessage,
-            }}
-          />
+          <ReferencesSidebarContext.Provider value={referencesSidebarValue}>
+            <ThreadPrimitive.Messages
+              components={{
+                UserMessage: UserMessage,
+                EditComposer: EditComposer,
+                AssistantMessage: AssistantMessage,
+              }}
+            />
+          </ReferencesSidebarContext.Provider>
 
           <ThreadPrimitive.If empty={false}>
             <div className="min-h-8" />
@@ -96,14 +133,10 @@ export const Thread: FC = () => {
       <AddPersonaModal open={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
       <PersonaSettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <ReferencesPanel
-        open={isReferencesOpen}
-        onClose={() => setReferencesOpen(false)}
-        referencesByMessageId={referencesByMessageId}
-        activeMessageId={selectedReferenceMessageId}
-        onSelectMessage={(messageId) => {
-          setSelectedReferenceMessageId(messageId);
-          setLatestReferenceMessageId(messageId);
-        }}
+        open={isReferencesPanelOpen}
+        onClose={() => setReferenceSidebarMessageId(null)}
+        references={activeReferences}
+        messageId={referenceSidebarMessageId}
       />
     </ThreadPrimitive.Root>
   );
@@ -244,29 +277,6 @@ const SettingsShortcut: FC<{ onOpen: () => void }> = ({ onOpen }) => {
         aria-label="Open persona settings"
       >
         <CogIcon className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-};
-
-const ReferencesShortcut: FC<{ onOpen: () => void; disabled: boolean; count: number }> = ({ onOpen, disabled, count }) => {
-  return (
-    <div className="fixed right-6 top-20 z-30">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="rounded-full border-border/70 bg-background/80 shadow-lg backdrop-blur"
-        onClick={onOpen}
-        disabled={disabled}
-        aria-label="Open references panel"
-      >
-        References
-        {count > 0 && (
-          <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-            {count}
-          </span>
-        )}
       </Button>
     </div>
   );
@@ -576,6 +586,20 @@ const AssistantMessage: FC = () => {
 };
 
 const AssistantActionBar: FC = () => {
+  const messageId = useAssistantState((state) => state.message.id);
+  const { referencesByMessageId } = useReferences();
+  const { openMessageId, toggleForMessage } = useReferencesSidebar();
+  const referenceCount = messageId ? referencesByMessageId[messageId]?.length ?? 0 : 0;
+  const hasReferences = referenceCount > 0;
+  const isReferencesOpen = messageId ? openMessageId === messageId : false;
+
+  const handleToggle = () => {
+    if (!messageId || !hasReferences) {
+      return;
+    }
+    toggleForMessage(messageId);
+  };
+
   return (
     <ActionBarPrimitive.Root
       hideWhenRunning
@@ -598,6 +622,25 @@ const AssistantActionBar: FC = () => {
           <RefreshCwIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
+      <div className="relative">
+        <TooltipIconButton
+          tooltip={isReferencesOpen ? "Hide references" : "Show references"}
+          onClick={handleToggle}
+          disabled={!hasReferences}
+          aria-pressed={isReferencesOpen}
+          className={cn(
+            isReferencesOpen && "bg-primary/10 text-primary hover:bg-primary/10",
+            !hasReferences && "opacity-60",
+          )}
+        >
+          <BookOpenIcon className="h-4 w-4" />
+        </TooltipIconButton>
+        {hasReferences && (
+          <span className="pointer-events-none absolute -right-1 -top-1 rounded-full bg-primary px-1.5 py-0 text-[0.6rem] font-semibold leading-[1.1] text-primary-foreground">
+            {referenceCount > 9 ? "9+" : referenceCount}
+          </span>
+        )}
+      </div>
     </ActionBarPrimitive.Root>
   );
 };

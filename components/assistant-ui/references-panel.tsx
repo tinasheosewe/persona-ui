@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useMemo } from "react";
+import { FC } from "react";
 import { XIcon } from "lucide-react";
 import { ReferenceItem } from "@/app/MyRuntimeProvider";
 import { Button } from "@/components/ui/button";
@@ -8,26 +8,22 @@ import { Button } from "@/components/ui/button";
 export type ReferencesPanelProps = {
   open: boolean;
   onClose: () => void;
-  referencesByMessageId: Record<string, ReferenceItem[]>;
-  activeMessageId: string | null;
-  onSelectMessage: (messageId: string) => void;
+  references: ReferenceItem[];
+  messageId?: string | null;
 };
 
 export const ReferencesPanel: FC<ReferencesPanelProps> = ({
   open,
   onClose,
-  referencesByMessageId,
-  activeMessageId,
-  onSelectMessage,
+  references,
+  messageId,
 }) => {
-  const messageIds = useMemo(() => Object.keys(referencesByMessageId), [referencesByMessageId]);
-  const fallbackId = messageIds.length ? messageIds[messageIds.length - 1] : null;
-  const resolvedId = activeMessageId ?? fallbackId;
-  const references = resolvedId ? referencesByMessageId[resolvedId] ?? [] : [];
-
   if (!open) {
     return null;
   }
+
+  const truncatedId = messageId ? `${messageId.slice(0, 8)}…` : null;
+  const hasReferences = references.length > 0;
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -37,40 +33,26 @@ export const ReferencesPanel: FC<ReferencesPanelProps> = ({
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">References</p>
             <h3 className="text-xl font-semibold">Raw lookup excerpts</h3>
-            <p className="text-sm text-muted-foreground">These snippets come directly from retrieval and are not rewritten by the assistant.</p>
+            <p className="text-sm text-muted-foreground">
+              These snippets come directly from retrieval and are not rewritten by the assistant.
+            </p>
+            {truncatedId && (
+              <p className="mt-2 text-xs text-muted-foreground/80">Reply ID {truncatedId}</p>
+            )}
           </div>
           <Button variant="ghost" size="icon" className="rounded-full" onClick={onClose} aria-label="Close references panel">
             <XIcon className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="border-b border-border/60 px-5 py-3">
-          {messageIds.length > 0 ? (
-            <label className="flex flex-col gap-2 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assistant message</span>
-              <select
-                value={resolvedId ?? messageIds[0]}
-                onChange={(event) => onSelectMessage(event.target.value)}
-                className="rounded-md border border-input bg-muted/40 px-3 py-2"
-              >
-                {messageIds.map((messageId, index) => (
-                  <option key={messageId} value={messageId}>
-                    Reply #{index + 1} ({messageId.slice(0, 8)}…)
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <p className="text-sm text-muted-foreground">No references captured yet.</p>
-          )}
-        </div>
-
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {references.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Select a recent reply to explore its supporting excerpts.</p>
+          {!hasReferences ? (
+            <p className="text-sm text-muted-foreground">
+              No references available for this reply yet.
+            </p>
           ) : (
             references.map((reference, index) => (
-              <article key={`${resolvedId}-${index}`} className="rounded-xl border border-border/80 bg-card/60 p-4 space-y-2">
+              <article key={`${messageId ?? "reference"}-${index}`} className="rounded-xl border border-border/80 bg-card/60 p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
                   <span className="font-semibold">{reference.source || "Document"}</span>
                   {reference.document && (
