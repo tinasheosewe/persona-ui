@@ -280,7 +280,7 @@ const CharacterSelector: FC = () => {
       <div className="mt-2 flex items-center gap-3">
         <select
           className="flex-grow rounded-md border border-input bg-background px-3 py-2 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60"
-          value={selectedCharacter ?? ""}
+          value={selectedCharacter?.id ?? ""}
           onChange={(event) => selectCharacter(event.target.value)}
           disabled={selectDisabled}
         >
@@ -292,8 +292,8 @@ const CharacterSelector: FC = () => {
                 : "No characters available"}
           </option>
           {characters.map((character) => (
-            <option key={character} value={character}>
-              {formatCharacterLabel(character)}
+            <option key={character.id} value={character.id}>
+              {character.displayName}
             </option>
           ))}
         </select>
@@ -306,14 +306,6 @@ const CharacterSelector: FC = () => {
       )}
     </div>
   );
-};
-
-const formatCharacterLabel = (value: string): string => {
-  return value
-    .split("_")
-    .filter((segment) => segment.length > 0)
-    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
-    .join(" ");
 };
 
 const CircleStopIcon = () => {

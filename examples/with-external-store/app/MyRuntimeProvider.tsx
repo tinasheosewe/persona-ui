@@ -59,11 +59,18 @@ const getMessageText = (message: ThreadMessageLike): string => {
   const textPart = message.content.find((part) => part.type === "text");
   return textPart?.text ?? "";
 };
+ 
+export type CharacterOption = {
+  id: string;
+  slug: string;
+  displayName: string;
+  documentCount: number;
+};
 
 type CharacterContextValue = {
-  characters: readonly string[];
-  selectedCharacter: string | null;
-  selectCharacter: (name: string) => void;
+  characters: readonly CharacterOption[];
+  selectedCharacter: CharacterOption | null;
+  selectCharacter: (characterId: string) => void;
   isLoadingCharacters: boolean;
   charactersError: string | null;
 };
@@ -126,8 +133,10 @@ export function MyRuntimeProvider({
   const [isRunning, setIsRunning] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastAssistantMessageIdRef = useRef<string | null>(null);
-  const [characters, setCharacters] = useState<readonly string[]>([]);
-  const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null);
+  const [characters, setCharacters] = useState<readonly CharacterOption[]>([]);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
+    () => getStoredCharacter(),
+  );
   const hasHydratedStoredCharacterRef = useRef(false);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState<boolean>(true);
   const [charactersError, setCharactersError] = useState<string | null>(null);
@@ -153,29 +162,43 @@ export function MyRuntimeProvider({
           throw new Error(`Failed to load characters (${response.status})`);
         }
 
-        const payload: { characters?: string[] } = await response.json();
-        const nextCharacters = Array.isArray(payload.characters) ? payload.characters : [];
+        const payload: {
+          characters?: Array<{
+            id: string;
+            slug: string;
+            display_name: string;
+            document_count: number;
+          }>;
+        } = await response.json();
+        const nextCharacters: CharacterOption[] = Array.isArray(payload.characters)
+          ? payload.characters.map((character) => ({
+              id: character.id,
+              slug: character.slug,
+              displayName: character.display_name,
+              documentCount: character.document_count,
+            }))
+          : [];
         if (!nextCharacters.length) {
           throw new Error("No characters available from the server");
         }
 
         if (!cancelled) {
-          const storedCharacter = getStoredCharacter();
           setCharacters(nextCharacters);
-          setSelectedCharacter((current) => {
-            if (storedCharacter && nextCharacters.includes(storedCharacter)) {
-              return storedCharacter;
+          setSelectedCharacterId((current) => {
+            const stored = getStoredCharacter();
+            if (stored && nextCharacters.some((character) => character.id === stored)) {
+              return stored;
             }
-            if (current && nextCharacters.includes(current)) {
+            if (current && nextCharacters.some((character) => character.id === current)) {
               return current;
             }
-            return nextCharacters[0] ?? null;
+            return nextCharacters[0]?.id ?? null;
           });
         }
       } catch (error) {
         if (!cancelled) {
           setCharacters([]);
-          setSelectedCharacter(null);
+          setSelectedCharacterId(null);
           persistCharacter(null);
           setCharactersError(
             error instanceof Error ? error.message : "Unable to load characters.",
@@ -197,28 +220,38 @@ export function MyRuntimeProvider({
   }, [baseUrl]);
 
   const selectCharacter = useCallback(
-    (name: string) => {
-      if (!characters.includes(name) || name === selectedCharacter) {
+    (characterId: string) => {
+      if (
+        !characters.some((character) => character.id === characterId) ||
+        characterId === selectedCharacterId
+      ) {
         return;
       }
-      setSelectedCharacter(name);
-      persistCharacter(name);
+      setSelectedCharacterId(characterId);
+      persistCharacter(characterId);
       if (typeof window !== "undefined") {
         window.location.reload();
       }
     },
-    [characters, selectedCharacter],
+    [characters, selectedCharacterId],
   );
 
   useEffect(() => {
     if (!hasHydratedStoredCharacterRef.current) {
-      if (selectedCharacter === null) {
+      if (selectedCharacterId === null) {
         return;
       }
       hasHydratedStoredCharacterRef.current = true;
     }
-    persistCharacter(selectedCharacter);
-  }, [selectedCharacter]);
+    persistCharacter(selectedCharacterId);
+  }, [selectedCharacterId]);
+
+  const selectedCharacter = useMemo(() => {
+    if (!selectedCharacterId) {
+      return null;
+    }
+    return characters.find((character) => character.id === selectedCharacterId) ?? null;
+  }, [characters, selectedCharacterId]);
 
   const refreshSessions = useCallback(async () => {
     setIsLoadingSessions(true);
@@ -442,7 +475,7 @@ export function MyRuntimeProvider({
             message: text,
             session_id: sessionId,
             verbose: false,
-            character_name: selectedCharacter,
+            character_id: selectedCharacter.id,
           }),
           signal: controller.signal,
         });
