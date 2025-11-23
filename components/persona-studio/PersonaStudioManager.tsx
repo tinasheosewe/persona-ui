@@ -506,8 +506,13 @@ export function PersonaStudioManager({ className }: { className?: string }) {
                       className="flex flex-col gap-2 px-4 py-3 text-sm md:flex-row md:items-center md:gap-4"
                     >
                       <div className="flex-1">
-                        <p className="font-medium">{document.filename}</p>
-                        <p className="text-xs text-muted-foreground break-all">
+                        <p className="font-medium" title={document.filename}>
+                          {document.filename}
+                        </p>
+                        <p
+                          className="text-xs text-muted-foreground break-all"
+                          title={document.relative_path}
+                        >
                           {document.relative_path}
                         </p>
                       </div>

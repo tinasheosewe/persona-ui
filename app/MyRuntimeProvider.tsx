@@ -116,8 +116,22 @@ type SessionHistoryContextValue = {
   activeSessionId: string;
 };
 
+export type ReferenceItem = {
+  source: string;
+  excerpt: string;
+  document?: string | null;
+  metadata?: Record<string, any> | null;
+};
+
+type ReferenceContextValue = {
+  referencesByMessageId: Record<string, ReferenceItem[]>;
+  latestReferenceMessageId: string | null;
+  setLatestReferenceMessageId: (messageId: string | null) => void;
+};
+
 const PersonaContext = createContext<PersonaContextValue | undefined>(undefined);
 const SessionHistoryContext = createContext<SessionHistoryContextValue | undefined>(undefined);
+const ReferencesContext = createContext<ReferenceContextValue | undefined>(undefined);
 export const usePersonaOptions = (): PersonaContextValue => {
   const context = useContext(PersonaContext);
   if (!context) {
@@ -130,6 +144,14 @@ export const useSessionHistory = (): SessionHistoryContextValue => {
   const context = useContext(SessionHistoryContext);
   if (!context) {
     throw new Error("useSessionHistory must be used within MyRuntimeProvider");
+  }
+  return context;
+};
+
+export const useReferences = (): ReferenceContextValue => {
+  const context = useContext(ReferencesContext);
+  if (!context) {
+    throw new Error("useReferences must be used within MyRuntimeProvider");
   }
   return context;
 };
@@ -154,6 +176,12 @@ export function MyRuntimeProvider({
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [referencesByMessageId, setReferencesByMessageId] = useState<Record<string, ReferenceItem[]>>({});
+  const [latestReferenceMessageId, setLatestReferenceMessageId] = useState<string | null>(null);
+  const resetReferences = useCallback(() => {
+    setReferencesByMessageId({});
+    setLatestReferenceMessageId(null);
+  }, []);
 
   const setAssistantText = useCallback((messageId: string, nextText: string | ((currentText: string) => string)) => {
     setMessages((currentMessages) =>
@@ -267,11 +295,12 @@ export function MyRuntimeProvider({
       setMessages([]);
       setSessionId(createSessionId());
       lastAssistantMessageIdRef.current = null;
+      resetReferences();
 
       setSelectedPersonaId(personaId);
       persistPersona(personaId);
     },
-    [personas, handleCancel, selectedPersonaId],
+    [personas, handleCancel, selectedPersonaId, resetReferences],
   );
 
   useEffect(() => {
@@ -362,6 +391,7 @@ export function MyRuntimeProvider({
         const restoredMessages = buildMessagesFromSession(session);
         setMessages(restoredMessages);
         setSessionId(targetSessionId);
+        resetReferences();
       } catch (error) {
         console.error("Unable to open session", error);
         setSessionsError(
@@ -369,13 +399,14 @@ export function MyRuntimeProvider({
         );
       }
     },
-    [baseUrl, buildMessagesFromSession],
+    [baseUrl, buildMessagesFromSession, resetReferences],
   );
 
   const startNewSession = useCallback(() => {
     setSessionId(createSessionId());
     setMessages([]);
-  }, []);
+    resetReferences();
+  }, [resetReferences]);
 
   useEffect(() => {
     void refreshSessions();
@@ -419,6 +450,15 @@ export function MyRuntimeProvider({
       startNewSession,
       sessionId,
     ],
+  );
+
+  const referencesContextValue = useMemo<ReferenceContextValue>(
+    () => ({
+      referencesByMessageId,
+      latestReferenceMessageId,
+      setLatestReferenceMessageId,
+    }),
+    [referencesByMessageId, latestReferenceMessageId],
   );
 
   const appendMessage = useCallback(
@@ -482,6 +522,7 @@ export function MyRuntimeProvider({
             session_id: sessionId,
             verbose: false,
             character_id: selectedPersona.id,
+            response_message_id: assistantMessageId,
           }),
           signal: controller.signal,
         });
@@ -525,6 +566,30 @@ export function MyRuntimeProvider({
                   ? payload.message
                   : "Assistant streaming error",
               );
+            } else if (payload?.type === "references") {
+              const messageId = typeof payload.message_id === "string" ? payload.message_id : assistantMessageId;
+              const rawReferences = Array.isArray(payload.references) ? payload.references : [];
+              if (messageId && rawReferences.length > 0) {
+                const normalized = rawReferences
+                  .map((entry: any): ReferenceItem | null => {
+                    const excerpt = typeof entry?.excerpt === "string" ? entry.excerpt.trim() : "";
+                    if (!excerpt) {
+                      return null;
+                    }
+                    const source = typeof entry?.source === "string" ? entry.source : "Document";
+                    const document = typeof entry?.document === "string" ? entry.document : null;
+                    const metadata = entry?.metadata && typeof entry.metadata === "object" ? entry.metadata : null;
+                    return { source, excerpt, document, metadata };
+                  })
+                  .filter((entry): entry is ReferenceItem => entry !== null);
+                if (normalized.length > 0) {
+                  setReferencesByMessageId((current) => ({
+                    ...current,
+                    [messageId]: normalized,
+                  }));
+                  setLatestReferenceMessageId(messageId);
+                }
+              }
             } else if (payload?.type === "done") {
               streamComplete = true;
               return true;
@@ -579,7 +644,16 @@ export function MyRuntimeProvider({
         setIsRunning(false);
       }
     },
-    [appendMessage, baseUrl, refreshSessions, selectedPersona, sessionId, setAssistantText],
+    [
+      appendMessage,
+      baseUrl,
+      refreshSessions,
+      selectedPersona,
+      sessionId,
+      setAssistantText,
+      setReferencesByMessageId,
+      setLatestReferenceMessageId,
+    ],
   );
 
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
@@ -594,7 +668,9 @@ export function MyRuntimeProvider({
   return (
     <PersonaContext.Provider value={personaContextValue}>
       <SessionHistoryContext.Provider value={sessionHistoryContextValue}>
-        <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+        <ReferencesContext.Provider value={referencesContextValue}>
+          <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
+        </ReferencesContext.Provider>
       </SessionHistoryContext.Provider>
     </PersonaContext.Provider>
   );

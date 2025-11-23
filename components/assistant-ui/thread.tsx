@@ -29,13 +29,29 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { usePersonaOptions } from "@/app/MyRuntimeProvider";
+import { usePersonaOptions, useReferences } from "@/app/MyRuntimeProvider";
 import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
 import { PersonaStudioManager } from "@/components/persona-studio/PersonaStudioManager";
+import { ReferencesPanel } from "@/components/assistant-ui/references-panel";
 
 export const Thread: FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { referencesByMessageId, latestReferenceMessageId, setLatestReferenceMessageId } = useReferences();
+  const [isReferencesOpen, setReferencesOpen] = useState(false);
+  const [selectedReferenceMessageId, setSelectedReferenceMessageId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (latestReferenceMessageId) {
+      setSelectedReferenceMessageId(latestReferenceMessageId);
+    }
+  }, [latestReferenceMessageId]);
+
+  const selectedReferences = selectedReferenceMessageId
+    ? referencesByMessageId[selectedReferenceMessageId] ?? []
+    : [];
+  const availableReferenceCount = selectedReferences.length;
+  const hasReferences = Object.keys(referencesByMessageId).length > 0;
 
   return (
     <ThreadPrimitive.Root
@@ -46,6 +62,11 @@ export const Thread: FC = () => {
     >
       <PersonaBubble onAdd={() => setIsAddModalOpen(true)} />
       <SettingsShortcut onOpen={() => setIsSettingsOpen(true)} />
+      <ReferencesShortcut
+        onOpen={() => setReferencesOpen(true)}
+        disabled={!hasReferences}
+        count={availableReferenceCount}
+      />
 
       <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pb-6 pt-24">
         <div className="mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col">
@@ -74,6 +95,16 @@ export const Thread: FC = () => {
 
       <AddPersonaModal open={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
       <PersonaSettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <ReferencesPanel
+        open={isReferencesOpen}
+        onClose={() => setReferencesOpen(false)}
+        referencesByMessageId={referencesByMessageId}
+        activeMessageId={selectedReferenceMessageId}
+        onSelectMessage={(messageId) => {
+          setSelectedReferenceMessageId(messageId);
+          setLatestReferenceMessageId(messageId);
+        }}
+      />
     </ThreadPrimitive.Root>
   );
 };
@@ -213,6 +244,29 @@ const SettingsShortcut: FC<{ onOpen: () => void }> = ({ onOpen }) => {
         aria-label="Open persona settings"
       >
         <CogIcon className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
+
+const ReferencesShortcut: FC<{ onOpen: () => void; disabled: boolean; count: number }> = ({ onOpen, disabled, count }) => {
+  return (
+    <div className="fixed right-6 top-20 z-30">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="rounded-full border-border/70 bg-background/80 shadow-lg backdrop-blur"
+        onClick={onOpen}
+        disabled={disabled}
+        aria-label="Open references panel"
+      >
+        References
+        {count > 0 && (
+          <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+            {count}
+          </span>
+        )}
       </Button>
     </div>
   );
