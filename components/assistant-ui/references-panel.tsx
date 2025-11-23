@@ -51,29 +51,34 @@ export const ReferencesPanel: FC<ReferencesPanelProps> = ({
               No references available for this reply yet.
             </p>
           ) : (
-            references.map((reference, index) => (
-              <article key={`${messageId ?? "reference"}-${index}`} className="rounded-xl border border-border/80 bg-card/60 p-4 space-y-2">
-                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted-foreground">
-                  <span className="font-semibold">{reference.source || "Document"}</span>
-                  {reference.document && (
-                    <span className="truncate text-[0.65rem] text-muted-foreground/90">{reference.document}</span>
-                  )}
-                </div>
-                <blockquote className="text-sm text-foreground whitespace-pre-line leading-relaxed">
-                  {reference.excerpt}
-                </blockquote>
-                {reference.metadata && Object.keys(reference.metadata).length > 0 && (
-                  <div className="text-[0.7rem] text-muted-foreground">
-                    {Object.entries(reference.metadata).map(([key, value]) => (
-                      <div key={key} className="flex gap-1">
-                        <span className="uppercase tracking-wide">{key}:</span>
-                        <span className="truncate">{String(value)}</span>
-                      </div>
-                    ))}
+            references.map((reference, index) => {
+              const filename = (() => {
+                const raw = reference.document?.trim();
+                if (raw) {
+                  const segments = raw.split(/[/\\]/).filter(Boolean);
+                  if (segments.length) {
+                    return segments[segments.length - 1];
+                  }
+                }
+                return reference.source || "Document";
+              })();
+
+              return (
+                <article
+                  key={`${messageId ?? "reference"}-${index}`}
+                  className="rounded-xl border border-border/80 bg-card/60 p-4 space-y-2"
+                >
+                  <div className="flex items-center text-xs uppercase tracking-wide text-muted-foreground">
+                    <span className="font-semibold truncate" title={reference.document ?? reference.source ?? undefined}>
+                      {filename}
+                    </span>
                   </div>
-                )}
-              </article>
-            ))
+                  <blockquote className="text-sm text-foreground whitespace-pre-line leading-relaxed">
+                    {reference.excerpt}
+                  </blockquote>
+                </article>
+              );
+            })
           )}
         </div>
 

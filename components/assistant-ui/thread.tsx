@@ -71,15 +71,6 @@ export const Thread: FC = () => {
     setReferenceSidebarMessageId((current) => (current === messageId ? null : messageId));
   }, []);
 
-  useEffect(() => {
-    if (!referenceSidebarMessageId) {
-      return;
-    }
-    if (!referencesByMessageId[referenceSidebarMessageId]) {
-      setReferenceSidebarMessageId(null);
-    }
-  }, [referenceSidebarMessageId, referencesByMessageId]);
-
   const referencesSidebarValue = useMemo(
     () => ({
       openMessageId: referenceSidebarMessageId,
@@ -87,11 +78,14 @@ export const Thread: FC = () => {
     }),
     [referenceSidebarMessageId, toggleReferencesForMessage],
   );
-
-  const activeReferences = referenceSidebarMessageId
-    ? referencesByMessageId[referenceSidebarMessageId] ?? []
+  const resolvedReferenceMessageId =
+    referenceSidebarMessageId && referencesByMessageId[referenceSidebarMessageId]
+      ? referenceSidebarMessageId
+      : null;
+  const activeReferences = resolvedReferenceMessageId
+    ? referencesByMessageId[resolvedReferenceMessageId] ?? []
     : [];
-  const isReferencesPanelOpen = referenceSidebarMessageId !== null;
+  const isReferencesPanelOpen = resolvedReferenceMessageId !== null;
 
   return (
     <ThreadPrimitive.Root
@@ -136,7 +130,7 @@ export const Thread: FC = () => {
         open={isReferencesPanelOpen}
         onClose={() => setReferenceSidebarMessageId(null)}
         references={activeReferences}
-        messageId={referenceSidebarMessageId}
+        messageId={resolvedReferenceMessageId}
       />
     </ThreadPrimitive.Root>
   );
@@ -591,7 +585,7 @@ const AssistantActionBar: FC = () => {
   const { openMessageId, toggleForMessage } = useReferencesSidebar();
   const referenceCount = messageId ? referencesByMessageId[messageId]?.length ?? 0 : 0;
   const hasReferences = referenceCount > 0;
-  const isReferencesOpen = messageId ? openMessageId === messageId : false;
+  const isReferencesOpen = hasReferences && messageId ? openMessageId === messageId : false;
 
   const handleToggle = () => {
     if (!messageId || !hasReferences) {
