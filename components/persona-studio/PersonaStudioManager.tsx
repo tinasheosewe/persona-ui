@@ -7,10 +7,10 @@ import {
   Loader2Icon,
   PencilIcon,
   PlusIcon,
-  RefreshCwIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
+ 
 
 import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
 import { Button } from "@/components/ui/button";
@@ -125,12 +125,6 @@ export function PersonaStudioManager({
       setIsLoadingPersonas(false);
     }
   }, [baseUrl]);
-
-  const handleRefreshPersonas = useCallback(() => {
-    setPersonaActionMessage(null);
-    setPersonaActionError(null);
-    void loadPersonas();
-  }, [loadPersonas]);
 
   const loadDocuments = useCallback(async () => {
     if (!selectedPersona) {
@@ -469,7 +463,7 @@ export function PersonaStudioManager({
           )}
         </section>
 
-          <section className="flex flex-col rounded-xl border border-border bg-card/70 p-5 shadow-sm lg:min-h-0">
+        <section className="flex flex-col rounded-xl border border-border bg-card/70 p-5 shadow-sm lg:min-h-0">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
@@ -477,17 +471,6 @@ export function PersonaStudioManager({
               </p>
               <h2 className="text-2xl font-semibold">Keep knowledge tidy</h2>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleRefreshPersonas}
-              disabled={isLoadingPersonas}
-              className="gap-1"
-            >
-              <RefreshCwIcon className={cn("h-4 w-4", isLoadingPersonas && "animate-spin")} />
-              Refresh personas
-            </Button>
           </div>
           <div className="mt-4 flex flex-col gap-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

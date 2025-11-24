@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useMemo, useState } from "react";
-import { RefreshCwIcon, PlusIcon, XIcon, PinIcon } from "lucide-react";
+import { PlusIcon, XIcon, PinIcon } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { useSessionHistory } from "@/app/MyRuntimeProvider";
@@ -36,7 +36,6 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
     sessions,
     isLoadingSessions,
     sessionsError,
-    refreshSessions,
     openSession,
     startNewSession,
     activeSessionId,
@@ -72,15 +71,6 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
               <p className="text-xs text-muted-foreground">Continue a conversation</p>
             </div>
             <div className="flex items-center gap-2">
-              <TooltipIconButton
-                tooltip="Refresh sessions"
-                onClick={() => {
-                  void refreshSessions();
-                }}
-                className="size-8 rounded-full border border-border/40 bg-background/80"
-              >
-                <RefreshCwIcon className="h-4 w-4" />
-              </TooltipIconButton>
               <TooltipIconButton
                 tooltip="Start new chat"
                 onClick={startNewSession}
