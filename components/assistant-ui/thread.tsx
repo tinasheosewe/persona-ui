@@ -395,6 +395,7 @@ const AddPersonaModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onC
 };
 
 const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  const { selectedPersona } = usePersonaOptions();
   if (!open) {
     return null;
   }
@@ -426,7 +427,10 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open
           </Button>
         </div>
         <div className="max-h-[80vh] overflow-y-auto px-1 pb-4">
-          <PersonaStudioManager className="px-6 pb-6" />
+          <PersonaStudioManager
+            className="px-6 pb-6"
+            initialPersonaId={selectedPersona?.id ?? null}
+          />
         </div>
       </div>
     </div>

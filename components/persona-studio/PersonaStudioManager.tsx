@@ -42,12 +42,22 @@ const formatSize = (bytes: number): string => {
   return `${(kb / 1024).toFixed(1)} MB`;
 };
 
-export function PersonaStudioManager({ className }: { className?: string }) {
+type PersonaStudioManagerProps = {
+  className?: string;
+  initialPersonaId?: string | null;
+};
+
+export function PersonaStudioManager({
+  className,
+  initialPersonaId,
+}: PersonaStudioManagerProps) {
   const baseUrl = useMemo(() => resolveFastApiBaseUrl(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [personas, setPersonas] = useState<PersonaSummary[]>([]);
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(
+    initialPersonaId ?? null,
+  );
   const [isLoadingPersonas, setIsLoadingPersonas] = useState<boolean>(true);
   const [personasError, setPersonasError] = useState<string | null>(null);
   const [personaActionError, setPersonaActionError] = useState<string | null>(null);
@@ -67,6 +77,10 @@ export function PersonaStudioManager({ className }: { className?: string }) {
     }
     return personas.find((persona) => persona.id === selectedPersonaId) ?? null;
   }, [personas, selectedPersonaId]);
+
+  useEffect(() => {
+    setSelectedPersonaId(initialPersonaId ?? null);
+  }, [initialPersonaId]);
 
   const loadPersonas = useCallback(async () => {
     setIsLoadingPersonas(true);
@@ -435,7 +449,9 @@ export function PersonaStudioManager({ className }: { className?: string }) {
             <select
               className="rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
               value={selectedPersonaId ?? ""}
-              onChange={(event) => setSelectedPersonaId(event.target.value)}
+              onChange={(event) => {
+                setSelectedPersonaId(event.target.value || null);
+              }}
               disabled={isLoadingPersonas}
             >
               <option value="" disabled>
