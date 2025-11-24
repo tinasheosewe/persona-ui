@@ -106,59 +106,57 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
           )}
           aria-hidden={!isExpanded}
         >
-          <div className="rounded-3xl border border-border/40 bg-card/70 p-3 shadow-inner">
-            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-              {isLoadingSessions && (
-                <p className="text-sm text-muted-foreground px-2 py-2">Loading chats…</p>
-              )}
-              {sessionsError && (
-                <p className="text-sm text-red-500 px-2 py-2">{sessionsError}</p>
-              )}
-              {!isLoadingSessions && !sessions.length && !sessionsError && (
-                <p className="text-sm text-muted-foreground px-2 py-2">
-                  No chats yet. Start a new conversation.
-                </p>
-              )}
-              <ul className="space-y-2">
-                {sessions.map((session) => {
-                  const isActive = session.sessionId === activeSessionId;
-                  return (
-                    <li key={session.sessionId}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void openSession(session.sessionId);
-                          if (onClose) {
-                            onClose();
-                          }
-                        }}
-                        className={cn(
-                          "w-full rounded-2xl border px-4 py-3 text-left text-sm shadow-sm transition hover:shadow-md",
-                          isActive
-                            ? "border-primary/60 bg-primary/10 text-primary"
-                            : "border-border/40 bg-background/80 hover:border-border/70",
-                        )}
-                      >
-                        <p className="font-semibold tracking-wide text-xs text-muted-foreground uppercase">
-                          Session {session.sessionId.slice(-6)}
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1 pt-2">
+            {isLoadingSessions && (
+              <p className="text-sm text-muted-foreground px-2 py-2">Loading chats…</p>
+            )}
+            {sessionsError && (
+              <p className="text-sm text-red-500 px-2 py-2">{sessionsError}</p>
+            )}
+            {!isLoadingSessions && !sessions.length && !sessionsError && (
+              <p className="text-sm text-muted-foreground px-2 py-2">
+                No chats yet. Start a new conversation.
+              </p>
+            )}
+            <ul className="space-y-2">
+              {sessions.map((session) => {
+                const isActive = session.sessionId === activeSessionId;
+                return (
+                  <li key={session.sessionId}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void openSession(session.sessionId);
+                        if (onClose) {
+                          onClose();
+                        }
+                      }}
+                      className={cn(
+                        "w-full rounded-2xl border px-4 py-3 text-left text-sm shadow-sm transition hover:shadow-md",
+                        isActive
+                          ? "border-primary/60 bg-primary/10 text-primary"
+                          : "border-border/40 bg-background/80 hover:border-border/70",
+                      )}
+                    >
+                      <p className="font-semibold tracking-wide text-xs text-muted-foreground uppercase">
+                        Session {session.sessionId.slice(-6)}
+                      </p>
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {session.personaName}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {formatTimestamp(session.updatedAt)}
+                      </p>
+                      {session.preview && (
+                        <p className="text-xs text-muted-foreground/90 line-clamp-2 mt-2">
+                          {session.preview}
                         </p>
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {session.personaName}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {formatTimestamp(session.updatedAt)}
-                        </p>
-                        {session.preview && (
-                          <p className="text-xs text-muted-foreground/90 line-clamp-2 mt-2">
-                            {session.preview}
-                          </p>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
       </div>
