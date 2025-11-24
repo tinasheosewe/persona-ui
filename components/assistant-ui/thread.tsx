@@ -2,7 +2,6 @@
 
 import {
   ActionBarPrimitive,
-  BranchPickerPrimitive,
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
@@ -23,8 +22,6 @@ import {
   ArrowDownIcon,
   CheckIcon,
   ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   CogIcon,
   Loader2Icon,
   CopyIcon,
@@ -97,7 +94,7 @@ export const Thread: FC = () => {
       <PersonaBubble onAdd={() => setIsAddModalOpen(true)} />
       <SettingsShortcut onOpen={() => setIsSettingsOpen(true)} />
 
-      <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pb-6 pt-24">
+      <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pb-40 pt-24">
         <div className="mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col">
           <ThreadWelcome />
 
@@ -117,8 +114,8 @@ export const Thread: FC = () => {
         </div>
       </ThreadPrimitive.Viewport>
 
-      <div className="flex flex-shrink-0 items-center justify-center border-t border-border bg-background/95 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="relative w-full max-w-[var(--thread-max-width)]">
+      <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex justify-center px-4">
+        <div className="pointer-events-auto relative w-full max-w-3xl">
           <ThreadScrollToBottom />
           <Composer />
         </div>
@@ -473,7 +470,7 @@ const Composer: FC = () => {
 
   return (
     <ComposerPrimitive.Root
-      className="focus-within:ring-2 focus-within:ring-primary/15 flex w-full flex-wrap items-center gap-3 rounded-full border border-border/60 bg-card/80 px-4 py-2 shadow-sm transition-colors ease-in"
+      className="focus-within:ring-2 focus-within:ring-primary/20 flex w-full flex-wrap items-center gap-3 rounded-3xl border border-border/40 bg-background/95 px-5 py-3 shadow-xl shadow-black/10 transition-colors ease-in overflow-hidden backdrop-blur"
       data-disabled={composerDisabled || undefined}
     >
       <ComposerPrimitive.Input
@@ -481,7 +478,7 @@ const Composer: FC = () => {
         autoFocus
         disabled={composerDisabled}
         placeholder={placeholder}
-        className="placeholder:text-muted-foreground max-h-40 flex-grow resize-none border-none bg-transparent px-1 py-2 text-base outline-none focus:ring-0 disabled:cursor-not-allowed"
+        className="placeholder:text-muted-foreground max-h-40 min-h-[2.75rem] w-full flex-1 resize-none border-none bg-transparent px-1 py-1 text-base leading-6 text-foreground outline-none focus:ring-0 disabled:cursor-not-allowed break-words whitespace-pre-wrap"
       />
       <ComposerAction disabled={composerDisabled} />
     </ComposerPrimitive.Root>
@@ -526,8 +523,6 @@ const UserMessage: FC = () => {
       <div className="bg-muted text-foreground col-start-2 row-start-2 max-w-[calc(var(--thread-max-width)*0.8)] rounded-3xl px-5 py-2.5 break-words">
         <MessagePrimitive.Parts />
       </div>
-
-      <BranchPicker className="col-span-full col-start-1 row-start-3 -mr-1 justify-end" />
     </MessagePrimitive.Root>
   );
 };
@@ -573,8 +568,6 @@ const AssistantMessage: FC = () => {
       </div>
 
       <AssistantActionBar />
-
-      <BranchPicker className="col-start-2 row-start-2 mr-2 -ml-2" />
     </MessagePrimitive.Root>
   );
 };
@@ -635,36 +628,6 @@ const AssistantActionBar: FC = () => {
         )}
       </div>
     </ActionBarPrimitive.Root>
-  );
-};
-
-const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
-  className,
-  ...rest
-}) => {
-  return (
-    <BranchPickerPrimitive.Root
-      hideWhenSingleBranch
-      className={cn(
-        "text-muted-foreground inline-flex items-center text-xs",
-        className,
-      )}
-      {...rest}
-    >
-      <BranchPickerPrimitive.Previous asChild>
-        <TooltipIconButton tooltip="Previous">
-          <ChevronLeftIcon />
-        </TooltipIconButton>
-      </BranchPickerPrimitive.Previous>
-      <span className="font-medium">
-        <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
-      </span>
-      <BranchPickerPrimitive.Next asChild>
-        <TooltipIconButton tooltip="Next">
-          <ChevronRightIcon />
-        </TooltipIconButton>
-      </BranchPickerPrimitive.Next>
-    </BranchPickerPrimitive.Root>
   );
 };
 
