@@ -46,12 +46,14 @@ type PersonaStudioManagerProps = {
   className?: string;
   initialPersonaId?: string | null;
   onViewDocument?: (document: PersonaDocument) => void;
+  onPersonaChange?: (personaId: string | null) => void;
 };
 
 export function PersonaStudioManager({
   className,
   initialPersonaId,
   onViewDocument,
+  onPersonaChange,
 }: PersonaStudioManagerProps) {
   const baseUrl = useMemo(() => resolveFastApiBaseUrl(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -83,6 +85,10 @@ export function PersonaStudioManager({
   useEffect(() => {
     setSelectedPersonaId(initialPersonaId ?? null);
   }, [initialPersonaId]);
+
+  useEffect(() => {
+    onPersonaChange?.(selectedPersonaId);
+  }, [onPersonaChange, selectedPersonaId]);
 
   const loadPersonas = useCallback(async () => {
     setIsLoadingPersonas(true);

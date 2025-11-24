@@ -400,10 +400,18 @@ const AddPersonaModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onC
 
 const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { selectedPersona } = usePersonaOptions();
+  const selectedPersonaId = selectedPersona?.id ?? null;
+  const [managerPersonaId, setManagerPersonaId] = useState<string | null>(selectedPersonaId);
   const [viewingDocument, setViewingDocument] = useState<PersonaDocument | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [isViewerLoading, setIsViewerLoading] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setManagerPersonaId(selectedPersonaId);
+    }
+  }, [open, selectedPersonaId]);
 
   const isPreviewableDocument = useCallback((document: PersonaDocument) => {
     const previewableExtensions = ["pdf", "txt", "md", "markdown", "html", "htm"];
@@ -535,8 +543,9 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open
           ) : (
             <PersonaStudioManager
               className="px-6 pb-6"
-              initialPersonaId={selectedPersona?.id ?? null}
+              initialPersonaId={managerPersonaId}
               onViewDocument={handleViewDocument}
+              onPersonaChange={setManagerPersonaId}
             />
           )}
         </div>

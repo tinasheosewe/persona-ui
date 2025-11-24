@@ -92,7 +92,7 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
                 tooltip={isLocked ? "Unlock panel" : "Lock panel"}
                 onClick={() => setIsLocked((prev) => !prev)}
                 className={cn(
-                  "size-8 rounded-full border border-border/40 bg-background/80",
+                  "hidden md:inline-flex size-8 rounded-full border border-border/40 bg-background/80",
                   isLocked && "border-primary/40 bg-primary/10 text-primary",
                 )}
               >
