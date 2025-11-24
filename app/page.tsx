@@ -34,7 +34,7 @@ export default function Home() {
           mobileOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
-        <div className="flex h-full min-w-0 flex-1 justify-center px-2 md:px-6">
+        <div className="flex h-full min-w-0 flex-1 justify-center px-2 md:px-6 md:pr-72">
           <Thread mobileOverlayActive={sidebarOpen} />
         </div>
       </div>
