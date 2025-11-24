@@ -473,7 +473,7 @@ const Composer: FC = () => {
 
   return (
     <ComposerPrimitive.Root
-      className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in"
+      className="focus-within:ring-2 focus-within:ring-primary/15 flex w-full flex-wrap items-center gap-3 rounded-full border border-border/60 bg-card/80 px-4 py-2 shadow-sm transition-colors ease-in"
       data-disabled={composerDisabled || undefined}
     >
       <ComposerPrimitive.Input
@@ -481,7 +481,7 @@ const Composer: FC = () => {
         autoFocus
         disabled={composerDisabled}
         placeholder={placeholder}
-        className="placeholder:text-muted-foreground max-h-40 flex-grow resize-none border-none bg-transparent px-2 py-4 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
+        className="placeholder:text-muted-foreground max-h-40 flex-grow resize-none border-none bg-transparent px-1 py-2 text-base outline-none focus:ring-0 disabled:cursor-not-allowed"
       />
       <ComposerAction disabled={composerDisabled} />
     </ComposerPrimitive.Root>
@@ -496,7 +496,7 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled }) => {
           <TooltipIconButton
             tooltip="Send"
             variant="default"
-            className="my-2.5 size-8 p-2 transition-opacity ease-in"
+            className="my-1.5 size-10 rounded-full border border-primary/30 bg-primary text-primary-foreground shadow-md transition-opacity ease-in hover:bg-primary/90"
             disabled={disabled}
           >
             <SendHorizontalIcon />
@@ -508,7 +508,7 @@ const ComposerAction: FC<{ disabled?: boolean }> = ({ disabled }) => {
           <TooltipIconButton
             tooltip="Cancel"
             variant="default"
-            className="my-2.5 size-8 p-2 transition-opacity ease-in"
+            className="my-1.5 size-10 rounded-full border border-destructive/30 bg-destructive/80 text-destructive-foreground shadow-md transition-opacity ease-in hover:bg-destructive"
           >
             <CircleStopIcon />
           </TooltipIconButton>
