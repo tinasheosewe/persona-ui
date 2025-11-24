@@ -119,10 +119,20 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
               </p>
             )}
             <ul className="space-y-2">
-              {sessions.map((session) => {
+              {sessions.map((session, index) => {
                 const isActive = session.sessionId === activeSessionId;
+                const animationDelayMs = Math.min(index, 8) * 45;
                 return (
-                  <li key={session.sessionId}>
+                  <li
+                    key={session.sessionId}
+                    className={cn(
+                      "transform-gpu transition-all duration-200 ease-out",
+                      isExpanded
+                        ? "opacity-100 translate-x-0"
+                        : "opacity-0 -translate-x-3",
+                    )}
+                    style={{ transitionDelay: `${animationDelayMs}ms` }}
+                  >
                     <button
                       type="button"
                       onClick={() => {
