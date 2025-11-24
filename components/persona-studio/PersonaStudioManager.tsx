@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ExternalLinkIcon,
   Loader2Icon,
@@ -8,6 +9,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react";
 
 import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
@@ -76,6 +78,10 @@ export function PersonaStudioManager({
   const [isLoadingDocuments, setIsLoadingDocuments] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<PersonaSummary | null>(null);
+  const [renameName, setRenameName] = useState<string>("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [isRenamingPersona, setIsRenamingPersona] = useState<boolean>(false);
 
   const selectedPersona = useMemo(() => {
     if (!selectedPersonaId) {
@@ -263,17 +269,45 @@ export function PersonaStudioManager({
     }
   };
 
-  const handleRenamePersona = async (persona: PersonaSummary) => {
-    const nextName = window
-      .prompt(`Rename ${persona.display_name}`, persona.display_name)
-      ?.trim();
-    if (!nextName || nextName === persona.display_name) {
+  const openRenameModal = (persona: PersonaSummary) => {
+    setRenameTarget(persona);
+    setRenameName(persona.display_name);
+    setRenameError(null);
+  };
+
+  const closeRenameModal = () => {
+    if (isRenamingPersona) {
       return;
     }
+    setRenameTarget(null);
+    setRenameName("");
+    setRenameError(null);
+  };
+
+  const handleRenamePersona = (persona: PersonaSummary) => {
+    openRenameModal(persona);
+  };
+
+  const handleRenamePersonaSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!renameTarget) {
+      return;
+    }
+    const nextName = renameName.trim();
+    if (!nextName) {
+      setRenameError("Please enter a new name.");
+      return;
+    }
+    if (nextName === renameTarget.display_name) {
+      setRenameError("Choose a different name to save.");
+      return;
+    }
+    setIsRenamingPersona(true);
     setPersonaActionError(null);
     setPersonaActionMessage(null);
+    setRenameError(null);
     try {
-      const response = await fetch(`${baseUrl}/characters/${persona.id}`, {
+      const response = await fetch(`${baseUrl}/characters/${renameTarget.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -287,10 +321,13 @@ export function PersonaStudioManager({
       setPersonaActionMessage(`Renamed persona to “${payload.display_name}”.`);
       await loadPersonas();
       onPersonasMutated?.();
+      closeRenameModal();
     } catch (error) {
-      setPersonaActionError(
+      setRenameError(
         error instanceof Error ? error.message : "Unable to rename character.",
       );
+    } finally {
+      setIsRenamingPersona(false);
     }
   };
 
@@ -321,15 +358,16 @@ export function PersonaStudioManager({
   };
 
   return (
-    <div
-      className={cn(
-        "mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-6 px-4 py-6 lg:overflow-hidden",
-        className,
-      )}
-    >
-      <div className="flex flex-col gap-6 lg:flex-1 lg:min-h-0 lg:grid lg:grid-cols-2">
-        <section className="flex flex-col rounded-xl border border-border bg-card/70 p-5 shadow-sm lg:min-h-0">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <>
+      <div
+        className={cn(
+          "mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-6 px-4 py-6 lg:overflow-hidden",
+          className,
+        )}
+      >
+        <div className="flex flex-col gap-6 lg:flex-1 lg:min-h-0 lg:grid lg:grid-cols-2">
+          <section className="flex flex-col rounded-xl border border-border bg-card/70 p-5 shadow-sm lg:min-h-0">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
                 Persona roster
@@ -431,7 +469,7 @@ export function PersonaStudioManager({
           )}
         </section>
 
-        <section className="flex flex-col rounded-xl border border-border bg-card/70 p-5 shadow-sm lg:min-h-0">
+          <section className="flex flex-col rounded-xl border border-border bg-card/70 p-5 shadow-sm lg:min-h-0">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
@@ -576,8 +614,106 @@ export function PersonaStudioManager({
               </div>
             )}
           </div>
-        </section>
+          </section>
+        </div>
       </div>
-    </div>
+      <RenamePersonaDialog
+      persona={renameTarget}
+      value={renameName}
+      error={renameError}
+      isSubmitting={isRenamingPersona}
+      onValueChange={setRenameName}
+      onCancel={closeRenameModal}
+      onSubmit={handleRenamePersonaSubmit}
+    />
+    </>
   );
 }
+
+type RenamePersonaDialogProps = {
+  persona: PersonaSummary | null;
+  value: string;
+  error: string | null;
+  isSubmitting: boolean;
+  onValueChange: (value: string) => void;
+  onCancel: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+};
+
+const RenamePersonaDialog = ({
+  persona,
+  value,
+  error,
+  isSubmitting,
+  onValueChange,
+  onCancel,
+  onSubmit,
+}: RenamePersonaDialogProps) => {
+  if (!persona) {
+    return null;
+  }
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 px-4 py-6 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="relative w-full max-w-lg rounded-3xl border border-border/70 bg-background/95 p-6 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              Persona studio
+            </p>
+            <h3 className="text-2xl font-semibold">Rename persona</h3>
+            <p className="text-sm text-muted-foreground">
+              Give {persona.display_name} a fresh title.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={onCancel}
+            aria-label="Close rename persona dialog"
+            disabled={isSubmitting}
+          >
+            <XIcon className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-3">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Persona name
+          </label>
+          <input
+            type="text"
+            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={value}
+            onChange={(event) => onValueChange(event.target.value)}
+            disabled={isSubmitting}
+            placeholder="e.g. Customer Whisperer"
+            autoFocus
+          />
+          <Button type="submit" disabled={isSubmitting} className="gap-2">
+            {isSubmitting ? (
+              <Loader2Icon className="h-4 w-4 animate-spin" />
+            ) : (
+              <PencilIcon className="h-4 w-4" />
+            )}
+            Save name
+          </Button>
+        </form>
+
+        {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
+      </div>
+    </div>,
+    document.body,
+  );
+};

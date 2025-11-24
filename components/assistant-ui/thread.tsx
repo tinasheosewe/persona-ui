@@ -62,7 +62,11 @@ const useReferencesSidebar = (): ReferencesSidebarContextValue => {
   return context;
 };
 
-export const Thread: FC = () => {
+type ThreadProps = {
+  mobileOverlayActive?: boolean;
+};
+
+export const Thread: FC<ThreadProps> = ({ mobileOverlayActive = false }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { referencesByMessageId } = useReferences();
@@ -102,10 +106,10 @@ export const Thread: FC = () => {
         ["--thread-max-width" as string]: "42rem",
       }}
     >
-      <PersonaBubble onAdd={() => setIsAddModalOpen(true)} />
-      <SettingsShortcut onOpen={() => setIsSettingsOpen(true)} />
+  <PersonaBubble onAdd={() => setIsAddModalOpen(true)} mobileOverlayActive={mobileOverlayActive} />
+  <SettingsShortcut onOpen={() => setIsSettingsOpen(true)} mobileOverlayActive={mobileOverlayActive} />
 
-      <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pb-40 pt-24">
+      <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pb-40 pt-40 sm:pt-28 lg:pt-24">
         <div className="mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col">
           <ThreadWelcome />
 
@@ -126,9 +130,15 @@ export const Thread: FC = () => {
       </ThreadPrimitive.Viewport>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex justify-center px-4">
-        <div className="pointer-events-auto relative w-full max-w-3xl">
+        <div
+          className={cn(
+            "pointer-events-auto relative w-full max-w-3xl transition duration-200",
+            mobileOverlayActive && "pointer-events-none opacity-50 saturate-50"
+          )}
+          aria-hidden={mobileOverlayActive ? "true" : undefined}
+        >
           <ThreadScrollToBottom />
-          <Composer />
+          <Composer mobileOverlayActive={mobileOverlayActive} />
         </div>
       </div>
 
@@ -148,7 +158,10 @@ export const Thread: FC = () => {
   );
 };
 
-const PersonaBubble: FC<{ onAdd: () => void }> = ({ onAdd }) => {
+const PersonaBubble: FC<{ onAdd: () => void; mobileOverlayActive?: boolean }> = ({
+  onAdd,
+  mobileOverlayActive = false,
+}) => {
   const {
     personas,
     selectedPersona,
@@ -184,9 +197,27 @@ const PersonaBubble: FC<{ onAdd: () => void }> = ({ onAdd }) => {
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (mobileOverlayActive) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Close dropdown when mobile overlay is active.
+      setMenuOpen(false);
+    }
+  }, [mobileOverlayActive]);
+
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-4 z-30 flex justify-center px-4">
-      <div className="pointer-events-auto flex w-full max-w-xl flex-col gap-1 rounded-full border border-border/70 bg-background/85 px-5 py-3 shadow-lg backdrop-blur">
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-x-0 top-24 sm:top-16 md:top-10 lg:top-6 z-30 flex justify-center px-4 transition",
+        mobileOverlayActive && "opacity-50"
+      )}
+      aria-hidden={mobileOverlayActive ? "true" : undefined}
+    >
+      <div
+        className={cn(
+          "pointer-events-auto flex w-full max-w-xl flex-col gap-1 rounded-full border border-border/70 bg-background/85 px-5 py-3 shadow-lg backdrop-blur transition",
+          mobileOverlayActive && "pointer-events-none blur-[1px]"
+        )}
+      >
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
             <SparklesIcon className="h-3.5 w-3.5 text-amber-500" />
@@ -198,12 +229,12 @@ const PersonaBubble: FC<{ onAdd: () => void }> = ({ onAdd }) => {
                 type="button"
                 className={cn(
                   "flex w-full items-center justify-between gap-2 rounded-full border border-border/50 bg-background/80 px-4 py-1.5 text-sm font-medium transition",
-                  selectDisabled && "pointer-events-none opacity-60",
+                  (selectDisabled || mobileOverlayActive) && "pointer-events-none opacity-60",
                 )}
                 aria-haspopup="listbox"
                 aria-expanded={menuOpen}
                 onClick={() => {
-                  if (selectDisabled) return;
+                  if (selectDisabled || mobileOverlayActive) return;
                   setMenuOpen((prev) => !prev);
                 }}
               >
@@ -261,6 +292,7 @@ const PersonaBubble: FC<{ onAdd: () => void }> = ({ onAdd }) => {
               size="sm"
               className="rounded-full border-border/60"
               onClick={onAdd}
+              disabled={mobileOverlayActive}
             >
               Add new
             </Button>
@@ -271,9 +303,18 @@ const PersonaBubble: FC<{ onAdd: () => void }> = ({ onAdd }) => {
   );
 };
 
-const SettingsShortcut: FC<{ onOpen: () => void }> = ({ onOpen }) => {
+const SettingsShortcut: FC<{ onOpen: () => void; mobileOverlayActive?: boolean }> = ({
+  onOpen,
+  mobileOverlayActive = false,
+}) => {
   return (
-    <div className="fixed right-6 top-6 z-30">
+    <div
+      className={cn(
+        "fixed right-4 top-4 z-30 sm:right-6 sm:top-6 transition",
+        mobileOverlayActive && "opacity-50"
+      )}
+      aria-hidden={mobileOverlayActive ? "true" : undefined}
+    >
       <Button
         type="button"
         variant="outline"
@@ -281,6 +322,7 @@ const SettingsShortcut: FC<{ onOpen: () => void }> = ({ onOpen }) => {
         className="rounded-full border-border/70 bg-background/80 shadow-lg backdrop-blur"
         onClick={onOpen}
         aria-label="Open persona settings"
+        disabled={mobileOverlayActive}
       >
         <CogIcon className="h-4 w-4" />
       </Button>
@@ -588,16 +630,16 @@ const ThreadScrollToBottom: FC = () => {
 const ThreadWelcome: FC = () => {
   return (
     <ThreadPrimitive.Empty>
-      <div className="flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col">
-        <div className="flex w-full flex-grow flex-col items-center justify-center">
-          <p className="mt-4 font-medium">How can I help you today?</p>
+      <div className="flex w-full flex-grow flex-col">
+        <div className="flex min-h-[calc(100dvh-10rem)] w-full items-center justify-center px-6 text-center md:-translate-x-36">
+          <p className="text-lg font-medium text-foreground/90">How can I help you today?</p>
         </div>
       </div>
     </ThreadPrimitive.Empty>
   );
 };
 
-const Composer: FC = () => {
+const Composer: FC<{ mobileOverlayActive?: boolean }> = ({ mobileOverlayActive = false }) => {
   const { isLoadingPersonas, selectedPersona } = usePersonaOptions();
   const composerDisabled = isLoadingPersonas || !selectedPersona;
   const placeholder = isLoadingPersonas
@@ -608,8 +650,12 @@ const Composer: FC = () => {
 
   return (
     <ComposerPrimitive.Root
-      className="focus-within:ring-2 focus-within:ring-primary/20 flex w-full flex-wrap items-center gap-3 rounded-3xl border border-border/40 bg-background/95 px-5 py-3 shadow-xl shadow-black/10 transition-colors ease-in overflow-hidden backdrop-blur"
+      className={cn(
+        "focus-within:ring-2 focus-within:ring-primary/20 flex w-full flex-wrap items-center gap-3 rounded-3xl border border-border/40 bg-background/95 px-5 py-3 shadow-xl shadow-black/10 transition-colors ease-in overflow-hidden backdrop-blur",
+        mobileOverlayActive && "pointer-events-none opacity-50 saturate-50"
+      )}
       data-disabled={composerDisabled || undefined}
+      aria-hidden={mobileOverlayActive ? "true" : undefined}
     >
       <ComposerPrimitive.Input
         rows={1}
