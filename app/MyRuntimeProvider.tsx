@@ -187,52 +187,99 @@ export function MyRuntimeProvider({
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
-    const [referencesByMessageId, setReferencesByMessageId] = useState<Record<string, ReferenceItem[]>>({});
-    const referencesStoreRef = useRef<Record<string, Record<string, ReferenceItem[]>>>({});
-    const sessionMessagesRef = useRef<Record<string, readonly ThreadMessageLike[]>>({});
+  const [referencesByMessageId, setReferencesByMessageId] = useState<Record<string, ReferenceItem[]>>({});
+  const referencesStoreRef = useRef<Record<string, Record<string, ReferenceItem[]>>>({});
+  const sessionMessagesRef = useRef<Record<string, readonly ThreadMessageLike[]>>({});
 
-    useEffect(() => {
-      sessionMessagesRef.current[sessionId] = messages;
-    }, [messages, sessionId]);
+  useEffect(() => {
+    sessionMessagesRef.current[sessionId] = messages;
+  }, [messages, sessionId]);
 
-    const updateReferencesForSession = useCallback(
-      (updater: (current: Record<string, ReferenceItem[]>) => Record<string, ReferenceItem[]>) => {
-        setReferencesByMessageId((current) => {
-          const next = updater(current);
-          referencesStoreRef.current[sessionId] = next;
-          return next;
-        });
-      },
-      [sessionId],
-    );
-
-    useEffect(() => {
-      if (!referencesStoreRef.current[sessionId]) {
-        referencesStoreRef.current[sessionId] = {};
-      }
-      setReferencesByMessageId(referencesStoreRef.current[sessionId]);
-    }, [sessionId]);
-
-  const setAssistantText = useCallback((messageId: string, nextText: string | ((currentText: string) => string)) => {
-    setMessages((currentMessages) =>
-      currentMessages.map((message) => {
-        if (message.id !== messageId) {
-          return message;
-        }
-
-        const currentText = getMessageText(message);
-        const resolvedText =
-          typeof nextText === "function"
-            ? (nextText as (text: string) => string)(currentText)
-            : nextText;
-
-        return {
-          ...message,
-          content: [{ type: "text", text: resolvedText }],
-        } satisfies ThreadMessageLike;
-      }),
-    );
+  const ensureSessionStores = useCallback((targetSessionId: string) => {
+    if (!sessionMessagesRef.current[targetSessionId]) {
+      sessionMessagesRef.current[targetSessionId] = [];
+    }
+    if (!referencesStoreRef.current[targetSessionId]) {
+      referencesStoreRef.current[targetSessionId] = {};
+    }
   }, []);
+
+  const applySessionMessageUpdate = useCallback(
+    (
+      targetSessionId: string,
+      updater: (current: readonly ThreadMessageLike[]) => readonly ThreadMessageLike[],
+    ) => {
+      ensureSessionStores(targetSessionId);
+      setMessages((currentMessages) => {
+        if (targetSessionId !== sessionId) {
+          const targetMessages = sessionMessagesRef.current[targetSessionId] ?? [];
+          const nextMessages = updater(targetMessages);
+          sessionMessagesRef.current[targetSessionId] = nextMessages;
+          return currentMessages;
+        }
+        const nextMessages = updater(currentMessages);
+        sessionMessagesRef.current[targetSessionId] = nextMessages;
+        return nextMessages;
+      });
+    },
+    [ensureSessionStores, sessionId],
+  );
+
+  const updateReferencesForSession = useCallback(
+    (
+      updater: (current: Record<string, ReferenceItem[]>) => Record<string, ReferenceItem[]>,
+      targetSessionId?: string,
+    ) => {
+      const sessionKey = targetSessionId ?? sessionId;
+      ensureSessionStores(sessionKey);
+      setReferencesByMessageId((current) => {
+        if (sessionKey !== sessionId) {
+          const source = referencesStoreRef.current[sessionKey] ?? {};
+          const next = updater(source);
+          referencesStoreRef.current[sessionKey] = next;
+          return current;
+        }
+        const next = updater(current);
+        referencesStoreRef.current[sessionKey] = next;
+        return next;
+      });
+    },
+    [ensureSessionStores, sessionId],
+  );
+
+  useEffect(() => {
+    ensureSessionStores(sessionId);
+    setReferencesByMessageId(referencesStoreRef.current[sessionId]);
+  }, [ensureSessionStores, sessionId]);
+
+  const setAssistantText = useCallback(
+    (
+      messageId: string,
+      nextText: string | ((currentText: string) => string),
+      options?: { sessionId?: string },
+    ) => {
+      const targetSessionId = options?.sessionId ?? sessionId;
+      applySessionMessageUpdate(targetSessionId, (currentMessages) =>
+        currentMessages.map((message) => {
+          if (message.id !== messageId) {
+            return message;
+          }
+
+          const currentText = getMessageText(message);
+          const resolvedText =
+            typeof nextText === "function"
+              ? (nextText as (text: string) => string)(currentText)
+              : nextText;
+
+          return {
+            ...message,
+            content: [{ type: "text", text: resolvedText }],
+          } satisfies ThreadMessageLike;
+        }),
+      );
+    },
+    [applySessionMessageUpdate, sessionId],
+  );
 
   const handleCancel = useCallback(async () => {
     if (abortControllerRef.current) {
@@ -324,6 +371,7 @@ export function MyRuntimeProvider({
       void handleCancel();
       setMessages([]);
       const newSessionId = createSessionId();
+  sessionMessagesRef.current[newSessionId] = [];
       referencesStoreRef.current[newSessionId] = {};
       setSessionId(newSessionId);
       lastAssistantMessageIdRef.current = null;
@@ -375,6 +423,22 @@ export function MyRuntimeProvider({
     [personas, selectedPersonaId],
   );
 
+  const personaLookupById = useMemo(() => {
+    const map = new Map<string, PersonaOption>();
+    personas.forEach((persona) => {
+      map.set(persona.id, persona);
+    });
+    return map;
+  }, [personas]);
+
+  const personaLookupBySlug = useMemo(() => {
+    const map = new Map<string, PersonaOption>();
+    personas.forEach((persona) => {
+      map.set(persona.slug, persona);
+    });
+    return map;
+  }, [personas]);
+
   const refreshSessions = useCallback(async () => {
     setIsLoadingSessions(true);
     setSessionsError(null);
@@ -390,12 +454,17 @@ export function MyRuntimeProvider({
           latestEntry?.assistant_response?.trim() ||
           latestEntry?.user_message?.trim() ||
           null;
+        const personaFromId = latestEntry?.character_id ? personaLookupById.get(latestEntry.character_id) : undefined;
+        const personaFromSlug = !personaFromId && latestEntry?.character_slug
+          ? personaLookupBySlug.get(latestEntry.character_slug)
+          : undefined;
+        const resolvedPersona = personaFromId ?? personaFromSlug;
         return {
           sessionId: session.session_id,
           updatedAt: latestEntry?.timestamp ?? new Date().toISOString(),
-          personaName: latestEntry?.character_name ?? "Unknown",
-          personaId: latestEntry?.character_id ?? null,
-          personaSlug: latestEntry?.character_slug ?? null,
+          personaName: resolvedPersona?.displayName ?? latestEntry?.character_name ?? "Unknown",
+          personaId: resolvedPersona?.id ?? latestEntry?.character_id ?? null,
+          personaSlug: resolvedPersona?.slug ?? latestEntry?.character_slug ?? null,
           preview: previewText,
         };
       });
@@ -408,7 +477,7 @@ export function MyRuntimeProvider({
     } finally {
       setIsLoadingSessions(false);
     }
-  }, [baseUrl]);
+  }, [baseUrl, personaLookupById, personaLookupBySlug]);
 
   const buildMessagesFromSession = useCallback((session: SessionLogModel) => {
     const restored: ThreadMessageLike[] = [];
@@ -446,8 +515,6 @@ export function MyRuntimeProvider({
       if (targetSessionId === sessionId) {
         return;
       }
-
-      await handleCancel();
 
       const cachedSummary = sessions.find((summary) => summary.sessionId === targetSessionId);
       if (cachedSummary) {
@@ -507,7 +574,6 @@ export function MyRuntimeProvider({
       alignPersonaForSession,
       baseUrl,
       buildMessagesFromSession,
-      handleCancel,
       sessionId,
       sessions,
       setReferencesByMessageId,
@@ -517,6 +583,7 @@ export function MyRuntimeProvider({
   const startNewSession = useCallback(() => {
     void handleCancel();
     const newSessionId = createSessionId();
+    sessionMessagesRef.current[newSessionId] = [];
     referencesStoreRef.current[newSessionId] = {};
     setSessionId(newSessionId);
     setMessages([]);
@@ -574,8 +641,9 @@ export function MyRuntimeProvider({
   );
 
   const appendMessage = useCallback(
-    (message: ThreadMessageLike) => {
-      setMessages((currentMessages) => [
+    (message: ThreadMessageLike, options?: { sessionId?: string }) => {
+      const targetSessionId = options?.sessionId ?? sessionId;
+      applySessionMessageUpdate(targetSessionId, (currentMessages) => [
         ...currentMessages,
         {
           ...message,
@@ -583,7 +651,7 @@ export function MyRuntimeProvider({
         },
       ]);
     },
-    [],
+    [applySessionMessageUpdate, sessionId],
   );
 
   const runAssistant = useCallback(
@@ -603,24 +671,27 @@ export function MyRuntimeProvider({
         return;
       }
 
+      const targetSessionId = sessionId;
+      ensureSessionStores(targetSessionId);
+
       if (appendUserMessage) {
         appendMessage({
           id: createMessageId(),
           role: "user",
           content: [{ type: "text", text }],
-        });
+        }, { sessionId: targetSessionId });
       }
 
       const resolvedAssistantMessageId = assistantMessageId ?? createMessageId();
 
       if (assistantMessageId) {
-        setAssistantText(resolvedAssistantMessageId, "");
+        setAssistantText(resolvedAssistantMessageId, "", { sessionId: targetSessionId });
       } else {
         appendMessage({
           id: resolvedAssistantMessageId,
           role: "assistant",
           content: [{ type: "text", text: "" }],
-        });
+        }, { sessionId: targetSessionId });
       }
 
       if (clearReferences && assistantMessageId) {
@@ -631,7 +702,7 @@ export function MyRuntimeProvider({
           const next = { ...current };
           delete next[assistantMessageId];
           return next;
-        });
+        }, targetSessionId);
       }
 
       setIsRunning(true);
@@ -648,7 +719,7 @@ export function MyRuntimeProvider({
           },
           body: JSON.stringify({
             message: text,
-            session_id: sessionId,
+            session_id: targetSessionId,
             verbose: false,
             character_id: selectedPersona.id,
             response_message_id: resolvedAssistantMessageId,
@@ -688,7 +759,9 @@ export function MyRuntimeProvider({
 
             if (payload?.type === "delta" && typeof payload.content === "string") {
               assembledText += payload.content;
-              setAssistantText(resolvedAssistantMessageId, assembledText);
+              setAssistantText(resolvedAssistantMessageId, assembledText, {
+                sessionId: targetSessionId,
+              });
             } else if (payload?.type === "error") {
               throw new Error(
                 typeof payload.message === "string"
@@ -715,7 +788,7 @@ export function MyRuntimeProvider({
                   updateReferencesForSession((current) => ({
                     ...current,
                     [messageId]: normalized,
-                  }));
+                  }), targetSessionId);
                 }
               }
             } else if (payload?.type === "done") {
@@ -755,7 +828,7 @@ export function MyRuntimeProvider({
         }
 
         const finalText = assembledText.trim().length > 0 ? assembledText.trim() : "(No response received.)";
-        setAssistantText(resolvedAssistantMessageId, finalText);
+        setAssistantText(resolvedAssistantMessageId, finalText, { sessionId: targetSessionId });
         void refreshSessions();
       } catch (error) {
         console.error("Failed to reach FastAPI backend", error);
@@ -764,6 +837,7 @@ export function MyRuntimeProvider({
           setAssistantText(
             resolvedAssistantMessageId,
             "Sorry, I couldn’t reach the assistant service. Please try again.",
+            { sessionId: targetSessionId },
           );
         }
       } finally {
@@ -775,6 +849,7 @@ export function MyRuntimeProvider({
     [
       appendMessage,
       baseUrl,
+      ensureSessionStores,
       refreshSessions,
       selectedPersona,
       sessionId,

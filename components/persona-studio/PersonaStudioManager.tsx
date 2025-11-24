@@ -47,6 +47,7 @@ type PersonaStudioManagerProps = {
   initialPersonaId?: string | null;
   onViewDocument?: (document: PersonaDocument) => void;
   onPersonaChange?: (personaId: string | null) => void;
+  onPersonasMutated?: () => void;
 };
 
 export function PersonaStudioManager({
@@ -54,6 +55,7 @@ export function PersonaStudioManager({
   initialPersonaId,
   onViewDocument,
   onPersonaChange,
+  onPersonasMutated,
 }: PersonaStudioManagerProps) {
   const baseUrl = useMemo(() => resolveFastApiBaseUrl(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -251,6 +253,7 @@ export function PersonaStudioManager({
       setPersonaActionMessage(`Created “${payload.display_name}”.`);
       setNewPersonaName("");
       await loadPersonas();
+      onPersonasMutated?.();
     } catch (error) {
       setPersonaActionError(
         error instanceof Error ? error.message : "Unable to create character.",
@@ -283,6 +286,7 @@ export function PersonaStudioManager({
       const payload = (await response.json()) as PersonaSummary;
       setPersonaActionMessage(`Renamed persona to “${payload.display_name}”.`);
       await loadPersonas();
+      onPersonasMutated?.();
     } catch (error) {
       setPersonaActionError(
         error instanceof Error ? error.message : "Unable to rename character.",
@@ -308,6 +312,7 @@ export function PersonaStudioManager({
       }
       setPersonaActionMessage(`Deleted ${persona.display_name}.`);
       await loadPersonas();
+      onPersonasMutated?.();
     } catch (error) {
       setPersonaActionError(
         error instanceof Error ? error.message : "Unable to delete character.",

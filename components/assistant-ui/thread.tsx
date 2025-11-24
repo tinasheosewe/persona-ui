@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { usePersonaOptions, useReferences } from "@/app/MyRuntimeProvider";
+import { usePersonaOptions, useReferences, useSessionHistory } from "@/app/MyRuntimeProvider";
 import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
 import {
   PersonaDocument,
@@ -66,6 +66,8 @@ export const Thread: FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { referencesByMessageId } = useReferences();
+  const { refreshPersonas } = usePersonaOptions();
+  const { refreshSessions } = useSessionHistory();
   const [referenceSidebarMessageId, setReferenceSidebarMessageId] = useState<string | null>(null);
 
   const toggleReferencesForMessage = useCallback((messageId: string) => {
@@ -87,6 +89,11 @@ export const Thread: FC = () => {
     ? referencesByMessageId[resolvedReferenceMessageId] ?? []
     : [];
   const isReferencesPanelOpen = resolvedReferenceMessageId !== null;
+
+  const handlePersonasMutated = useCallback(() => {
+    void refreshPersonas();
+    void refreshSessions();
+  }, [refreshPersonas, refreshSessions]);
 
   return (
     <ThreadPrimitive.Root
@@ -126,7 +133,11 @@ export const Thread: FC = () => {
       </div>
 
       <AddPersonaModal open={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
-      <PersonaSettingsModal open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <PersonaSettingsModal
+        open={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onPersonasMutated={handlePersonasMutated}
+      />
       <ReferencesPanel
         open={isReferencesPanelOpen}
         onClose={() => setReferenceSidebarMessageId(null)}
@@ -398,7 +409,11 @@ const AddPersonaModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onC
   );
 };
 
-const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void; onPersonasMutated?: () => void }> = ({
+  open,
+  onClose,
+  onPersonasMutated,
+}) => {
   const { selectedPersona } = usePersonaOptions();
   const selectedPersonaId = selectedPersona?.id ?? null;
   const [managerPersonaId, setManagerPersonaId] = useState<string | null>(selectedPersonaId);
@@ -409,6 +424,7 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open
 
   useEffect(() => {
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Safe reset when modal closes.
       setManagerPersonaId(selectedPersonaId);
     }
   }, [open, selectedPersonaId]);
@@ -546,6 +562,7 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open
               initialPersonaId={managerPersonaId}
               onViewDocument={handleViewDocument}
               onPersonaChange={setManagerPersonaId}
+              onPersonasMutated={onPersonasMutated}
             />
           )}
         </div>
