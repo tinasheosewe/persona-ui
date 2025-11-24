@@ -405,6 +405,12 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open
   const [isViewerLoading, setIsViewerLoading] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
 
+  const isPreviewableDocument = useCallback((document: PersonaDocument) => {
+    const previewableExtensions = ["pdf", "txt", "md", "markdown", "html", "htm"];
+    const name = document.filename.toLowerCase();
+    return previewableExtensions.some((extension) => name.endsWith(`.${extension}`));
+  }, []);
+
   const resetViewer = useCallback(() => {
     setViewerUrl(null);
     setViewerError(null);
@@ -413,12 +419,22 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open
   }, []);
 
   const handleViewDocument = useCallback((document: PersonaDocument) => {
+    setViewingDocument(document);
+    if (!isPreviewableDocument(document)) {
+      setViewerUrl(null);
+      setIsViewerLoading(false);
+      setViewerError("This file type can’t be previewed here. We’ll download it in a new tab.");
+      if (typeof window !== "undefined") {
+        window.open(document.download_url, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+
     setViewerError(null);
     setIsViewerLoading(true);
-    setViewingDocument(document);
     const proxyUrl = `/api/document-preview?url=${encodeURIComponent(document.download_url)}&filename=${encodeURIComponent(document.filename)}`;
     setViewerUrl(proxyUrl);
-  }, []);
+  }, [isPreviewableDocument]);
 
   const handleIframeLoad = useCallback(() => {
     setIsViewerLoading(false);
