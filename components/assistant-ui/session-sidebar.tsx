@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useMemo, useState } from "react";
-import { PlusIcon, XIcon, PinIcon } from "lucide-react";
+import { MessageSquareIcon, PlusIcon, XIcon, PinIcon } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { useSessionHistory } from "@/app/MyRuntimeProvider";
@@ -64,10 +64,16 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
       <div className="flex flex-1 flex-col gap-4 px-4 py-6 md:px-3">
         <div className="rounded-3xl border border-border/60 bg-card/90 p-4 shadow-xl shadow-black/5 backdrop-blur">
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-                Chats
-              </p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <span className="inline-flex size-8 items-center justify-center rounded-2xl border border-border/50 bg-background/80 text-primary shadow-sm">
+                  <MessageSquareIcon className="h-4 w-4" />
+                </span>
+                <span className="text-base">Chats</span>
+                <span className="rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                  Recent
+                </span>
+              </div>
               <p className="text-xs text-muted-foreground">Continue a conversation</p>
             </div>
             <div className="flex items-center gap-2">
