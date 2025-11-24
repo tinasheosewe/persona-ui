@@ -120,3 +120,34 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes welcomeLift {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.9);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-2rem) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-3rem) scale(0.9);
+  }
+}
+
+@keyframes welcomeTextReveal {
+  0%,
+  55% {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

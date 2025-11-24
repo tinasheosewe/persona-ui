@@ -7,6 +7,7 @@ import {
   ThreadPrimitive,
   useAssistantState,
 } from "@assistant-ui/react";
+import Image from "next/image";
 import {
   createContext,
   FC,
@@ -104,12 +105,14 @@ export const Thread: FC<ThreadProps> = ({ mobileOverlayActive = false }) => {
       className="bg-background box-border flex h-full min-h-0 flex-1 flex-col overflow-hidden"
       style={{
         ["--thread-max-width" as string]: "42rem",
+        ["--thread-viewport-padding-top" as string]: "clamp(4rem, 8vw, 6rem)",
+        ["--thread-viewport-padding-bottom" as string]: "clamp(7rem, 14vw, 9rem)",
       }}
     >
   <PersonaBubble onAdd={() => setIsAddModalOpen(true)} mobileOverlayActive={mobileOverlayActive} />
   <SettingsShortcut onOpen={() => setIsSettingsOpen(true)} mobileOverlayActive={mobileOverlayActive} />
 
-      <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pb-40 pt-40 sm:pt-28 lg:pt-24">
+      <ThreadPrimitive.Viewport className="flex-1 min-h-0 overflow-y-auto bg-inherit px-4 pt-[var(--thread-viewport-padding-top)] pb-[var(--thread-viewport-padding-bottom)] sm:px-6">
         <div className="mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col">
           <ThreadWelcome />
 
@@ -628,11 +631,35 @@ const ThreadScrollToBottom: FC = () => {
 };
 
 const ThreadWelcome: FC = () => {
+  const heroMinHeight =
+    "max(24rem, calc(100dvh - (var(--thread-viewport-padding-top, 6rem) + var(--thread-viewport-padding-bottom, 9rem))))";
+
   return (
     <ThreadPrimitive.Empty>
       <div className="flex w-full flex-grow flex-col">
-        <div className="flex min-h-[calc(100dvh-10rem)] w-full items-center justify-center px-6 text-center md:-translate-x-36">
-          <p className="text-lg font-medium text-foreground/90">How can I help you today?</p>
+        <div
+          className="relative mx-auto flex w-full max-w-2xl flex-1 items-center justify-center px-6 text-center"
+          style={{ minHeight: heroMinHeight }}
+        >
+          <div className="relative flex w-full flex-col items-center">
+            <div className="relative flex h-56 w-full items-center justify-center sm:h-64">
+              <Image
+                src="/favicon.ico"
+                alt="Chatbot UI logo"
+                width={384}
+                height={384}
+                className="motion-safe:animate-[welcomeLift_2.4s_ease-out_forwards] h-32 w-32 sm:h-44 sm:w-44"
+                priority
+              />
+
+              <p
+                className="pointer-events-none absolute text-lg font-medium text-foreground opacity-0 motion-safe:animate-[welcomeTextReveal_0.9s_ease-out_forwards]"
+                style={{ animationDelay: "2.2s", animationFillMode: "forwards" }}
+              >
+                How can I help you today?
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </ThreadPrimitive.Empty>
