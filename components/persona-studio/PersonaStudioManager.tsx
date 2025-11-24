@@ -21,7 +21,7 @@ interface PersonaSummary {
   document_count: number;
 }
 
-interface PersonaDocument {
+export interface PersonaDocument {
   filename: string;
   relative_path: string;
   size_bytes: number;
@@ -45,11 +45,13 @@ const formatSize = (bytes: number): string => {
 type PersonaStudioManagerProps = {
   className?: string;
   initialPersonaId?: string | null;
+  onViewDocument?: (document: PersonaDocument) => void;
 };
 
 export function PersonaStudioManager({
   className,
   initialPersonaId,
+  onViewDocument,
 }: PersonaStudioManagerProps) {
   const baseUrl = useMemo(() => resolveFastApiBaseUrl(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -217,10 +219,6 @@ export function PersonaStudioManager({
         error instanceof Error ? error.message : "Unable to delete document.",
       );
     }
-  };
-
-  const handleOpen = (document: PersonaDocument) => {
-    window.open(document.download_url, "_blank", "noopener,noreferrer");
   };
 
   const handleCreatePersona = async (event: FormEvent<HTMLFormElement>) => {
@@ -541,7 +539,7 @@ export function PersonaStudioManager({
                           variant="outline"
                           size="sm"
                           className="gap-1"
-                          onClick={() => handleOpen(document)}
+                          onClick={() => onViewDocument?.(document)}
                         >
                           <ExternalLinkIcon className="h-3.5 w-3.5" /> Open
                         </Button>

@@ -20,6 +20,7 @@ import {
 } from "react";
 import {
   ArrowDownIcon,
+  ArrowLeftIcon,
   CheckIcon,
   ChevronDownIcon,
   CogIcon,
@@ -40,7 +41,10 @@ import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { usePersonaOptions, useReferences } from "@/app/MyRuntimeProvider";
 import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
-import { PersonaStudioManager } from "@/components/persona-studio/PersonaStudioManager";
+import {
+  PersonaDocument,
+  PersonaStudioManager,
+} from "@/components/persona-studio/PersonaStudioManager";
 import { ReferencesPanel } from "@/components/assistant-ui/references-panel";
 
 type ReferencesSidebarContextValue = {
@@ -396,6 +400,41 @@ const AddPersonaModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onC
 
 const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { selectedPersona } = usePersonaOptions();
+  const [viewingDocument, setViewingDocument] = useState<PersonaDocument | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [isViewerLoading, setIsViewerLoading] = useState(false);
+  const [viewerError, setViewerError] = useState<string | null>(null);
+
+  const resetViewer = useCallback(() => {
+    setViewerUrl(null);
+    setViewerError(null);
+    setIsViewerLoading(false);
+    setViewingDocument(null);
+  }, []);
+
+  const handleViewDocument = useCallback((document: PersonaDocument) => {
+    setViewerError(null);
+    setIsViewerLoading(true);
+    setViewingDocument(document);
+    const proxyUrl = `/api/document-preview?url=${encodeURIComponent(document.download_url)}&filename=${encodeURIComponent(document.filename)}`;
+    setViewerUrl(proxyUrl);
+  }, []);
+
+  const handleIframeLoad = useCallback(() => {
+    setIsViewerLoading(false);
+  }, []);
+
+  const handleIframeError = useCallback(() => {
+    setViewerError("Unable to display document.");
+    setIsViewerLoading(false);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    resetViewer();
+    onClose();
+  }, [onClose, resetViewer]);
+
+  const isViewingDocument = viewingDocument !== null;
   if (!open) {
     return null;
   }
@@ -403,34 +442,87 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-6"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="relative w-full max-w-6xl rounded-3xl border border-border/70 bg-background/95 shadow-2xl backdrop-blur"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-              Persona studio
-            </p>
-            <h3 className="text-2xl font-semibold">Settings</h3>
+          <div className="flex items-center gap-3">
+            {isViewingDocument && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="rounded-full border border-border/40"
+                onClick={resetViewer}
+                aria-label="Back to settings"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+              </Button>
+            )}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                Persona studio
+              </p>
+              <h3 className="text-2xl font-semibold">
+                {isViewingDocument ? "Document viewer" : "Settings"}
+              </h3>
+              {isViewingDocument && viewingDocument && (
+                <p className="text-sm text-muted-foreground truncate">
+                  {viewingDocument.filename}
+                </p>
+              )}
+            </div>
           </div>
           <Button
             variant="ghost"
             size="icon"
             className="rounded-full"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close settings"
           >
             <XIcon className="h-4 w-4" />
           </Button>
         </div>
         <div className="max-h-[80vh] overflow-y-auto px-1 pb-4">
-          <PersonaStudioManager
-            className="px-6 pb-6"
-            initialPersonaId={selectedPersona?.id ?? null}
-          />
+          {isViewingDocument && viewingDocument ? (
+            <div className="px-6 pb-6">
+              <div className="relative rounded-2xl border border-border/70 bg-background/95 shadow-inner overflow-hidden">
+                {viewerError ? (
+                  <div className="flex h-[70vh] w-full items-center justify-center px-6 text-center text-sm text-red-500">
+                    {viewerError}
+                  </div>
+                ) : (
+                  viewerUrl && (
+                    <iframe
+                      key={viewerUrl}
+                      src={viewerUrl}
+                      title={viewingDocument.filename}
+                      className="h-[70vh] w-full"
+                      onLoad={handleIframeLoad}
+                      onError={handleIframeError}
+                    />
+                  )
+                )}
+                {isViewerLoading && !viewerError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/80 text-sm text-muted-foreground">
+                    Loading document…
+                  </div>
+                )}
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Previewed locally. Use back to return to persona settings.
+              </p>
+            </div>
+          ) : (
+            <PersonaStudioManager
+              className="px-6 pb-6"
+              initialPersonaId={selectedPersona?.id ?? null}
+              onViewDocument={handleViewDocument}
+            />
+          )}
         </div>
       </div>
     </div>
