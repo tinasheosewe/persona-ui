@@ -313,7 +313,7 @@ export function PersonaStudioManager({ className }: { className?: string }) {
               </p>
               <h1 className="text-2xl font-semibold">Curate your personas</h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                Add, rename, or remove personas. Removing a persona permanently wipes its documents and vectors.
+                Add, rename, or remove personas.
               </p>
             </div>
             <form className="flex flex-col gap-2 md:w-80" onSubmit={handleCreatePersona}>
