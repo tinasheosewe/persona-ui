@@ -413,7 +413,7 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void }> = ({ open
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
               Persona studio
             </p>
-            <h3 className="text-2xl font-semibold">Full settings</h3>
+            <h3 className="text-2xl font-semibold">Settings</h3>
           </div>
           <Button
             variant="ghost"
