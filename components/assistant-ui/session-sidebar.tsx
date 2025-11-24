@@ -1,10 +1,15 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC, useMemo, useState } from "react";
 import { RefreshCwIcon, PlusIcon, XIcon, PinIcon } from "lucide-react";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { useSessionHistory } from "@/app/MyRuntimeProvider";
+
+const safeTimestamp = (isoString: string): number => {
+  const value = new Date(isoString).getTime();
+  return Number.isNaN(value) ? 0 : value;
+};
 
 const formatTimestamp = (isoString: string): string => {
   try {
@@ -39,6 +44,14 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
   const [isLocked, setIsLocked] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const isExpanded = mobileOpen || isLocked || isHovering;
+
+  const sortedSessions = useMemo(
+    () =>
+      [...sessions].sort(
+        (a, b) => safeTimestamp(b.updatedAt) - safeTimestamp(a.updatedAt),
+      ),
+    [sessions],
+  );
 
   return (
     <aside
@@ -119,19 +132,25 @@ export const SessionSidebar: FC<SessionSidebarProps> = ({
               </p>
             )}
             <ul className="space-y-2">
-              {sessions.map((session, index) => {
+              {sortedSessions.map((session, index) => {
                 const isActive = session.sessionId === activeSessionId;
-                const animationDelayMs = Math.min(index, 8) * 45;
+                const animationBaseDelay = 60;
+                const animationCap = 8;
+                const enterDelayMs = Math.min(index, animationCap) * animationBaseDelay;
+                const exitDelayMs =
+                  Math.min(sortedSessions.length - index - 1, animationCap) *
+                  animationBaseDelay;
+                const transitionDelay = `${isExpanded ? enterDelayMs : exitDelayMs}ms`;
                 return (
                   <li
                     key={session.sessionId}
                     className={cn(
-                      "transform-gpu transition-all duration-200 ease-out",
+                      "transform-gpu transition-all duration-300 ease-out",
                       isExpanded
                         ? "opacity-100 translate-x-0"
                         : "opacity-0 -translate-x-3",
                     )}
-                    style={{ transitionDelay: `${animationDelayMs}ms` }}
+                    style={{ transitionDelay }}
                   >
                     <button
                       type="button"
