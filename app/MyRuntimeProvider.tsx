@@ -97,8 +97,12 @@ type PersonaContextValue = {
 type SessionLogEntryModel = {
   timestamp: string;
   character_name: string;
+  character_id?: string | null;
+  character_slug?: string | null;
   user_message: string;
   assistant_response: string;
+  references?: ReferenceItem[] | null;
+  message_id?: string | null;
 };
 
 type SessionLogModel = {
@@ -110,6 +114,8 @@ type SessionSummary = {
   sessionId: string;
   updatedAt: string;
   personaName: string;
+  personaId: string | null;
+  personaSlug: string | null;
   preview: string | null;
 };
 
@@ -345,6 +351,30 @@ export function MyRuntimeProvider({
     return personas.find((persona) => persona.id === selectedPersonaId) ?? null;
   }, [personas, selectedPersonaId]);
 
+  const alignPersonaForSession = useCallback(
+    (metadata: { personaId?: string | null; personaSlug?: string | null; personaName?: string | null }) => {
+      if (!personas.length) {
+        return;
+      }
+      const target = personas.find((persona) => {
+        if (metadata.personaId && persona.id === metadata.personaId) {
+          return true;
+        }
+        if (metadata.personaSlug && persona.slug === metadata.personaSlug) {
+          return true;
+        }
+        if (metadata.personaName && persona.displayName.toLowerCase() === metadata.personaName.toLowerCase()) {
+          return true;
+        }
+        return false;
+      });
+      if (target && target.id !== selectedPersonaId) {
+        setSelectedPersonaId(target.id);
+      }
+    },
+    [personas, selectedPersonaId],
+  );
+
   const refreshSessions = useCallback(async () => {
     setIsLoadingSessions(true);
     setSessionsError(null);
@@ -364,6 +394,8 @@ export function MyRuntimeProvider({
           sessionId: session.session_id,
           updatedAt: latestEntry?.timestamp ?? new Date().toISOString(),
           personaName: latestEntry?.character_name ?? "Unknown",
+          personaId: latestEntry?.character_id ?? null,
+          personaSlug: latestEntry?.character_slug ?? null,
           preview: previewText,
         };
       });
@@ -380,6 +412,7 @@ export function MyRuntimeProvider({
 
   const buildMessagesFromSession = useCallback((session: SessionLogModel) => {
     const restored: ThreadMessageLike[] = [];
+    const referenceMap: Record<string, ReferenceItem[]> = {};
     session.entries.forEach((entry) => {
       if (entry.user_message) {
         restored.push({
@@ -389,14 +422,23 @@ export function MyRuntimeProvider({
         });
       }
       if (entry.assistant_response) {
+        const assistantMessageId = entry.message_id?.trim() ? entry.message_id : createMessageId();
         restored.push({
-          id: createMessageId(),
+          id: assistantMessageId,
           role: "assistant",
           content: [{ type: "text", text: entry.assistant_response }],
         });
+        if (Array.isArray(entry.references) && entry.references.length) {
+          referenceMap[assistantMessageId] = entry.references.map((reference) => ({
+            source: reference.source,
+            excerpt: reference.excerpt,
+            document: reference.document ?? null,
+            metadata: reference.metadata ?? null,
+          }));
+        }
       }
     });
-    return restored;
+    return { messages: restored, references: referenceMap };
   }, []);
 
   const openSession = useCallback(
@@ -407,11 +449,22 @@ export function MyRuntimeProvider({
 
       await handleCancel();
 
+      const cachedSummary = sessions.find((summary) => summary.sessionId === targetSessionId);
+      if (cachedSummary) {
+        alignPersonaForSession({
+          personaId: cachedSummary.personaId,
+          personaSlug: cachedSummary.personaSlug,
+          personaName: cachedSummary.personaName,
+        });
+      }
+
       const cachedMessages = sessionMessagesRef.current[targetSessionId];
       if (cachedMessages) {
-        referencesStoreRef.current[targetSessionId] = referencesStoreRef.current[targetSessionId] ?? {};
+        const cachedReferences = referencesStoreRef.current[targetSessionId] ?? {};
+        referencesStoreRef.current[targetSessionId] = cachedReferences;
         setSessionId(targetSessionId);
         setMessages(cachedMessages);
+        setReferencesByMessageId(cachedReferences);
         return;
       }
 
@@ -427,11 +480,22 @@ export function MyRuntimeProvider({
         if (!session) {
           throw new Error("Session not found");
         }
-        const restoredMessages = buildMessagesFromSession(session);
-        referencesStoreRef.current[targetSessionId] = referencesStoreRef.current[targetSessionId] ?? {};
+        const metaEntry = session.entries[session.entries.length - 1] ?? session.entries[0];
+        if (metaEntry) {
+          alignPersonaForSession({
+            personaId: metaEntry.character_id ?? null,
+            personaSlug: metaEntry.character_slug ?? null,
+            personaName: metaEntry.character_name ?? null,
+          });
+        }
+        const { messages: restoredMessages, references: restoredReferences } = buildMessagesFromSession(
+          session,
+        );
+        referencesStoreRef.current[targetSessionId] = restoredReferences;
         sessionMessagesRef.current[targetSessionId] = restoredMessages;
         setSessionId(targetSessionId);
         setMessages(restoredMessages);
+        setReferencesByMessageId(restoredReferences);
       } catch (error) {
         console.error("Unable to open session", error);
         setSessionsError(
@@ -439,7 +503,15 @@ export function MyRuntimeProvider({
         );
       }
     },
-    [baseUrl, buildMessagesFromSession, handleCancel, sessionId],
+    [
+      alignPersonaForSession,
+      baseUrl,
+      buildMessagesFromSession,
+      handleCancel,
+      sessionId,
+      sessions,
+      setReferencesByMessageId,
+    ],
   );
 
   const startNewSession = useCallback(() => {
