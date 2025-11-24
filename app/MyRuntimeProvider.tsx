@@ -836,7 +836,7 @@ export function MyRuntimeProvider({
         if (!isAbortError) {
           setAssistantText(
             resolvedAssistantMessageId,
-            "Sorry, I couldn’t reach the assistant service. Please try again.",
+            "Sorry, I couldn’t reach the persona service. Please try again.",
             { sessionId: targetSessionId },
           );
         }

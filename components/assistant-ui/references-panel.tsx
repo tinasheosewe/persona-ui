@@ -34,7 +34,7 @@ export const ReferencesPanel: FC<ReferencesPanelProps> = ({
             <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">References</p>
             <h3 className="text-xl font-semibold">Raw lookup excerpts</h3>
             <p className="text-sm text-muted-foreground">
-              These snippets come directly from retrieval and are not rewritten by the assistant.
+              These snippets come directly from retrieval and are not rewritten by the persona.
             </p>
             {truncatedId && (
               <p className="mt-2 text-xs text-muted-foreground/80">Reply ID {truncatedId}</p>
