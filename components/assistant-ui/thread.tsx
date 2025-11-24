@@ -598,7 +598,7 @@ const PersonaSettingsModal: FC<{ open: boolean; onClose: () => void; onPersonasM
                 )}
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                Previewed locally. Use back to return to persona settings.
+                Press back button to return to persona settings.
               </p>
             </div>
           ) : (
