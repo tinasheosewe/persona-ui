@@ -71,6 +71,13 @@ const getMessageText = (message: ThreadMessageLike): string => {
   return textPart?.text ?? "";
 };
 
+type RunAssistantOptions = {
+  userText: string;
+  appendUserMessage?: boolean;
+  assistantMessageId?: string;
+  clearReferences?: boolean;
+};
+
 export type PersonaOption = {
   id: string;
   slug: string;
@@ -174,10 +181,31 @@ export function MyRuntimeProvider({
   const [sessions, setSessions] = useState<readonly SessionSummary[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
-  const [referencesByMessageId, setReferencesByMessageId] = useState<Record<string, ReferenceItem[]>>({});
-  const resetReferences = useCallback(() => {
-    setReferencesByMessageId({});
-  }, []);
+    const [referencesByMessageId, setReferencesByMessageId] = useState<Record<string, ReferenceItem[]>>({});
+    const referencesStoreRef = useRef<Record<string, Record<string, ReferenceItem[]>>>({});
+    const sessionMessagesRef = useRef<Record<string, readonly ThreadMessageLike[]>>({});
+
+    useEffect(() => {
+      sessionMessagesRef.current[sessionId] = messages;
+    }, [messages, sessionId]);
+
+    const updateReferencesForSession = useCallback(
+      (updater: (current: Record<string, ReferenceItem[]>) => Record<string, ReferenceItem[]>) => {
+        setReferencesByMessageId((current) => {
+          const next = updater(current);
+          referencesStoreRef.current[sessionId] = next;
+          return next;
+        });
+      },
+      [sessionId],
+    );
+
+    useEffect(() => {
+      if (!referencesStoreRef.current[sessionId]) {
+        referencesStoreRef.current[sessionId] = {};
+      }
+      setReferencesByMessageId(referencesStoreRef.current[sessionId]);
+    }, [sessionId]);
 
   const setAssistantText = useCallback((messageId: string, nextText: string | ((currentText: string) => string)) => {
     setMessages((currentMessages) =>
@@ -289,14 +317,15 @@ export function MyRuntimeProvider({
 
       void handleCancel();
       setMessages([]);
-      setSessionId(createSessionId());
+      const newSessionId = createSessionId();
+      referencesStoreRef.current[newSessionId] = {};
+      setSessionId(newSessionId);
       lastAssistantMessageIdRef.current = null;
-      resetReferences();
 
       setSelectedPersonaId(personaId);
       persistPersona(personaId);
     },
-    [personas, handleCancel, selectedPersonaId, resetReferences],
+  [personas, handleCancel, selectedPersonaId],
   );
 
   useEffect(() => {
@@ -372,6 +401,20 @@ export function MyRuntimeProvider({
 
   const openSession = useCallback(
     async (targetSessionId: string) => {
+      if (targetSessionId === sessionId) {
+        return;
+      }
+
+      await handleCancel();
+
+      const cachedMessages = sessionMessagesRef.current[targetSessionId];
+      if (cachedMessages) {
+        referencesStoreRef.current[targetSessionId] = referencesStoreRef.current[targetSessionId] ?? {};
+        setSessionId(targetSessionId);
+        setMessages(cachedMessages);
+        return;
+      }
+
       try {
         const response = await fetch(
           `${baseUrl}/logs?session_id=${encodeURIComponent(targetSessionId)}`,
@@ -385,9 +428,10 @@ export function MyRuntimeProvider({
           throw new Error("Session not found");
         }
         const restoredMessages = buildMessagesFromSession(session);
-        setMessages(restoredMessages);
+        referencesStoreRef.current[targetSessionId] = referencesStoreRef.current[targetSessionId] ?? {};
+        sessionMessagesRef.current[targetSessionId] = restoredMessages;
         setSessionId(targetSessionId);
-        resetReferences();
+        setMessages(restoredMessages);
       } catch (error) {
         console.error("Unable to open session", error);
         setSessionsError(
@@ -395,14 +439,16 @@ export function MyRuntimeProvider({
         );
       }
     },
-    [baseUrl, buildMessagesFromSession, resetReferences],
+    [baseUrl, buildMessagesFromSession, handleCancel, sessionId],
   );
 
   const startNewSession = useCallback(() => {
-    setSessionId(createSessionId());
+    void handleCancel();
+    const newSessionId = createSessionId();
+    referencesStoreRef.current[newSessionId] = {};
+    setSessionId(newSessionId);
     setMessages([]);
-    resetReferences();
-  }, [resetReferences]);
+  }, [handleCancel]);
 
   useEffect(() => {
     void refreshSessions();
@@ -468,14 +514,14 @@ export function MyRuntimeProvider({
     [],
   );
 
-  const onNew = useCallback(
-    async (message: AppendMessage) => {
-      const firstPart = message.content[0];
-      if (!firstPart || firstPart.type !== "text") {
-        throw new Error("Only plain text messages are supported.");
-      }
-
-      const text = firstPart.text.trim();
+  const runAssistant = useCallback(
+    async ({
+      userText,
+      appendUserMessage = true,
+      assistantMessageId,
+      clearReferences = false,
+    }: RunAssistantOptions) => {
+      const text = userText.trim();
       if (!text) {
         return;
       }
@@ -485,24 +531,41 @@ export function MyRuntimeProvider({
         return;
       }
 
-      appendMessage({
-        id: createMessageId(),
-        role: "user",
-        content: [{ type: "text", text }],
-      });
+      if (appendUserMessage) {
+        appendMessage({
+          id: createMessageId(),
+          role: "user",
+          content: [{ type: "text", text }],
+        });
+      }
+
+      const resolvedAssistantMessageId = assistantMessageId ?? createMessageId();
+
+      if (assistantMessageId) {
+        setAssistantText(resolvedAssistantMessageId, "");
+      } else {
+        appendMessage({
+          id: resolvedAssistantMessageId,
+          role: "assistant",
+          content: [{ type: "text", text: "" }],
+        });
+      }
+
+      if (clearReferences && assistantMessageId) {
+        updateReferencesForSession((current) => {
+          if (!current[assistantMessageId]) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[assistantMessageId];
+          return next;
+        });
+      }
 
       setIsRunning(true);
-
-      const assistantMessageId = createMessageId();
-      appendMessage({
-        id: assistantMessageId,
-        role: "assistant",
-        content: [{ type: "text", text: "" }],
-      });
-      lastAssistantMessageIdRef.current = assistantMessageId;
-
       const controller = new AbortController();
       abortControllerRef.current = controller;
+      lastAssistantMessageIdRef.current = resolvedAssistantMessageId;
 
       try {
         const response = await fetch(`${baseUrl}/chat/stream`, {
@@ -516,7 +579,7 @@ export function MyRuntimeProvider({
             session_id: sessionId,
             verbose: false,
             character_id: selectedPersona.id,
-            response_message_id: assistantMessageId,
+            response_message_id: resolvedAssistantMessageId,
           }),
           signal: controller.signal,
         });
@@ -553,7 +616,7 @@ export function MyRuntimeProvider({
 
             if (payload?.type === "delta" && typeof payload.content === "string") {
               assembledText += payload.content;
-              setAssistantText(assistantMessageId, assembledText);
+              setAssistantText(resolvedAssistantMessageId, assembledText);
             } else if (payload?.type === "error") {
               throw new Error(
                 typeof payload.message === "string"
@@ -561,7 +624,7 @@ export function MyRuntimeProvider({
                   : "Assistant streaming error",
               );
             } else if (payload?.type === "references") {
-              const messageId = typeof payload.message_id === "string" ? payload.message_id : assistantMessageId;
+              const messageId = typeof payload.message_id === "string" ? payload.message_id : resolvedAssistantMessageId;
               const rawReferences = Array.isArray(payload.references) ? payload.references : [];
               if (messageId && rawReferences.length > 0) {
                 const normalized = rawReferences
@@ -577,7 +640,7 @@ export function MyRuntimeProvider({
                   })
                   .filter((entry): entry is ReferenceItem => entry !== null);
                 if (normalized.length > 0) {
-                  setReferencesByMessageId((current) => ({
+                  updateReferencesForSession((current) => ({
                     ...current,
                     [messageId]: normalized,
                   }));
@@ -620,14 +683,14 @@ export function MyRuntimeProvider({
         }
 
         const finalText = assembledText.trim().length > 0 ? assembledText.trim() : "(No response received.)";
-        setAssistantText(assistantMessageId, finalText);
+        setAssistantText(resolvedAssistantMessageId, finalText);
         void refreshSessions();
       } catch (error) {
         console.error("Failed to reach FastAPI backend", error);
         const isAbortError = error instanceof DOMException && error.name === "AbortError";
         if (!isAbortError) {
           setAssistantText(
-            assistantMessageId,
+            resolvedAssistantMessageId,
             "Sorry, I couldn’t reach the assistant service. Please try again.",
           );
         }
@@ -644,8 +707,65 @@ export function MyRuntimeProvider({
       selectedPersona,
       sessionId,
       setAssistantText,
-      setReferencesByMessageId,
+      updateReferencesForSession,
     ],
+  );
+
+  const onNew = useCallback(
+    async (message: AppendMessage) => {
+      const firstPart = message.content[0];
+      if (!firstPart || firstPart.type !== "text") {
+        throw new Error("Only plain text messages are supported.");
+      }
+
+      const text = firstPart.text.trim();
+      if (!text) {
+        return;
+      }
+      await runAssistant({ userText: text });
+    },
+    [runAssistant],
+  );
+
+  const handleReload = useCallback(
+    async (parentId: string | null, config: { parentId: string | null; sourceId: string | null }) => {
+      const assistantMessageId = config.sourceId;
+      if (!assistantMessageId) {
+        console.warn("Cannot retry assistant response without a target message id.");
+        return;
+      }
+
+      let sourceText = "";
+      if (parentId) {
+        const parentMessage = messages.find((message) => message.id === parentId);
+        if (parentMessage && parentMessage.role === "user") {
+          sourceText = getMessageText(parentMessage);
+        }
+      }
+
+      if (!sourceText) {
+        const assistantIndex = messages.findIndex((message) => message.id === assistantMessageId);
+        if (assistantIndex > 0) {
+          const previousMessage = messages[assistantIndex - 1];
+          if (previousMessage?.role === "user") {
+            sourceText = getMessageText(previousMessage);
+          }
+        }
+      }
+
+      if (!sourceText.trim()) {
+        console.warn("Unable to retry because the original user message could not be found.");
+        return;
+      }
+
+      await runAssistant({
+        userText: sourceText,
+        appendUserMessage: false,
+        assistantMessageId,
+        clearReferences: true,
+      });
+    },
+    [messages, runAssistant],
   );
 
   const runtime = useExternalStoreRuntime<ThreadMessageLike>({
@@ -653,6 +773,7 @@ export function MyRuntimeProvider({
     setMessages,
     onNew,
     onCancel: handleCancel,
+    onReload: handleReload,
     isRunning,
     convertMessage,
   });

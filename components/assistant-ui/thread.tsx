@@ -596,7 +596,6 @@ const AssistantActionBar: FC = () => {
 
   return (
     <ActionBarPrimitive.Root
-      hideWhenRunning
       autohide="not-last"
       autohideFloat="single-branch"
       className="text-muted-foreground data-[floating]:bg-background col-start-3 row-start-2 -ml-1 flex gap-1 data-[floating]:absolute data-[floating]:rounded-md data-[floating]:border data-[floating]:p-1 data-[floating]:shadow-sm"
