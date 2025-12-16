@@ -3,6 +3,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  AlertTriangleIcon,
+  CheckCircle2Icon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ClockIcon,
   ExternalLinkIcon,
   Loader2Icon,
   PencilIcon,
@@ -10,11 +15,15 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react";
- 
+
 
 import { resolveFastApiBaseUrl } from "@/lib/resolve-fastapi-url";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const UPLOAD_STATUS_STORAGE_KEY = "persona-upload-statuses";
+const UPLOAD_FILE_DB = "persona-upload-files";
+const UPLOAD_FILE_STORE = "files";
 
 interface PersonaSummary {
   id: string;
@@ -31,6 +40,40 @@ export interface PersonaDocument {
   download_url: string;
 }
 
+type UploadStatus =
+  | {
+      id: string;
+      filename: string;
+      personaSlug: string;
+      personaName: string;
+      status: "queued";
+      message?: string;
+    }
+  | {
+      id: string;
+      filename: string;
+      personaSlug: string;
+      personaName: string;
+      status: "uploading";
+      message?: string;
+    }
+  | {
+      id: string;
+      filename: string;
+      personaSlug: string;
+      personaName: string;
+      status: "success";
+      message?: string;
+    }
+  | {
+      id: string;
+      filename: string;
+      personaSlug: string;
+      personaName: string;
+      status: "error";
+      message?: string;
+    };
+
 const encodeDocumentPath = (relativePath: string): string =>
   relativePath
     .split("/")
@@ -42,6 +85,90 @@ const formatSize = (bytes: number): string => {
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toFixed(1)} KB`;
   return `${(kb / 1024).toFixed(1)} MB`;
+};
+
+const generateUploadId = (): string => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const openUploadDb = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("IndexedDB is not available"));
+      return;
+    }
+    const request = indexedDB.open(UPLOAD_FILE_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(UPLOAD_FILE_STORE)) {
+        db.createObjectStore(UPLOAD_FILE_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error("Unable to open upload cache"));
+  });
+};
+
+const storeUploadFile = async (id: string, file: File): Promise<void> => {
+  const db = await openUploadDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(UPLOAD_FILE_STORE, "readwrite");
+    const store = tx.objectStore(UPLOAD_FILE_STORE);
+    const payload = {
+      name: file.name,
+      type: file.type,
+      blob: file,
+    };
+    const request = store.put(payload, id);
+    request.onsuccess = () => resolve();
+    request.onerror = () =>
+      reject(request.error ?? new Error("Unable to cache upload"));
+  });
+  db.close();
+};
+
+const loadUploadFile = async (id: string): Promise<File | null> => {
+  try {
+    const db = await openUploadDb();
+    const result = await new Promise<{ name: string; type: string; blob: Blob } | null>(
+      (resolve, reject) => {
+        const tx = db.transaction(UPLOAD_FILE_STORE, "readonly");
+        const store = tx.objectStore(UPLOAD_FILE_STORE);
+        const request = store.get(id);
+        request.onsuccess = () => resolve((request.result as any) ?? null);
+        request.onerror = () =>
+          reject(request.error ?? new Error("Unable to load cached upload"));
+      },
+    );
+    db.close();
+    if (!result) {
+      return null;
+    }
+    return new File([result.blob], result.name, { type: result.type });
+  } catch {
+    return null;
+  }
+};
+
+const deleteUploadFile = async (id: string): Promise<void> => {
+  try {
+    const db = await openUploadDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(UPLOAD_FILE_STORE, "readwrite");
+      const store = tx.objectStore(UPLOAD_FILE_STORE);
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () =>
+        reject(request.error ?? new Error("Unable to delete cached upload"));
+    });
+    db.close();
+  } catch {
+    // Swallow cache errors; upload state can still continue.
+  }
 };
 
 type PersonaStudioManagerProps = {
@@ -76,12 +203,16 @@ export function PersonaStudioManager({
   const [documents, setDocuments] = useState<PersonaDocument[]>([]);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState<boolean>(false);
-  const [isUploading, setIsUploading] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<PersonaSummary | null>(null);
   const [renameName, setRenameName] = useState<string>("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [isRenamingPersona, setIsRenamingPersona] = useState<boolean>(false);
+  const [uploadStatuses, setUploadStatuses] = useState<UploadStatus[]>([]);
+  const [isStatusCollapsed, setIsStatusCollapsed] = useState<boolean>(true);
+  const pendingFilesRef = useRef<Map<string, File>>(new Map());
+  const hasRestoredStatusesRef = useRef<boolean>(false);
+  const isProcessingRef = useRef<boolean>(false);
 
   const selectedPersona = useMemo(() => {
     if (!selectedPersonaId) {
@@ -162,39 +293,214 @@ export function PersonaStudioManager({
     void loadDocuments();
   }, [loadDocuments]);
 
-  const handleFileSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !selectedPersona) {
+  useEffect(() => {
+    if (typeof window === "undefined" || hasRestoredStatusesRef.current) {
       return;
     }
-    setIsUploading(true);
-    setDocumentsError(null);
-    setSuccessMessage(null);
-    try {
-      const encodedSlug = encodeURIComponent(selectedPersona.slug);
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch(`${baseUrl}/characters/${encodedSlug}/documents`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error(`Upload failed (${response.status})`);
-      }
-      const payload = (await response.json()) as {
-        document?: PersonaDocument;
-      };
-      const uploadedPath = payload.document?.relative_path ?? file.name;
-      setSuccessMessage(`Uploaded “${uploadedPath}”. Vectorization completed successfully.`);
-      await loadDocuments();
-    } catch (error) {
-      setDocumentsError(error instanceof Error ? error.message : "File upload failed.");
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+    const raw = window.localStorage.getItem(UPLOAD_STATUS_STORAGE_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as UploadStatus[];
+        const sanitized = Array.isArray(parsed)
+          ? parsed.filter(
+              (item): item is UploadStatus =>
+                item &&
+                typeof item.id === "string" &&
+                typeof item.filename === "string" &&
+                typeof item.personaSlug === "string" &&
+                typeof item.personaName === "string" &&
+                typeof item.status === "string",
+            )
+          : [];
+        setUploadStatuses(sanitized);
+      } catch {
+        // Ignore malformed cache and start fresh.
       }
     }
+    hasRestoredStatusesRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestoredStatusesRef.current || typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(UPLOAD_STATUS_STORAGE_KEY, JSON.stringify(uploadStatuses));
+  }, [uploadStatuses]);
+
+  const processUploadQueue = useCallback(async () => {
+    if (isProcessingRef.current) {
+      return;
+    }
+    isProcessingRef.current = true;
+    let successfulUploads = 0;
+    const successfulPersonaSlugs = new Set<string>();
+    let currentStatuses = uploadStatuses;
+
+    const updateStatuses = (updater: (current: UploadStatus[]) => UploadStatus[]) => {
+      setUploadStatuses((current) => {
+        const next = updater(current);
+        currentStatuses = next;
+        return next;
+      });
+    };
+
+    try {
+      while (true) {
+        const next = currentStatuses.find((upload) => upload.status === "queued");
+        if (!next) {
+          break;
+        }
+
+        let file = pendingFilesRef.current.get(next.id);
+        if (!file) {
+          file = await loadUploadFile(next.id);
+        }
+
+        if (!file) {
+          updateStatuses((current) =>
+            current.map((upload) =>
+              upload.id === next.id
+                ? {
+                    ...upload,
+                    status: "error",
+                    message: "Upload interrupted—file data unavailable. Please reupload.",
+                  }
+                : upload,
+            ),
+          );
+          continue;
+        }
+
+        updateStatuses((current) =>
+          current.map((upload) =>
+            upload.id === next.id
+              ? {
+                  ...upload,
+                  status: "uploading",
+                  message: `Uploading to ${upload.personaName}…`,
+                }
+              : upload,
+          ),
+        );
+
+        const encodedSlug = encodeURIComponent(next.personaSlug);
+        const formData = new FormData();
+        formData.append("file", file);
+        try {
+          const response = await fetch(`${baseUrl}/characters/${encodedSlug}/documents`, {
+            method: "POST",
+            body: formData,
+          });
+          if (!response.ok) {
+            throw new Error(`Upload failed (${response.status})`);
+          }
+          const payload = (await response.json()) as {
+            document?: PersonaDocument;
+          };
+          const uploadedPath = payload.document?.relative_path ?? file.name;
+          successfulUploads += 1;
+          successfulPersonaSlugs.add(next.personaSlug);
+          updateStatuses((current) =>
+            current.map((upload) =>
+              upload.id === next.id
+                ? {
+                    ...upload,
+                    status: "success",
+                    message: `Uploaded “${uploadedPath}”. Vectorization completed successfully.`,
+                  }
+                : upload,
+            ),
+          );
+          pendingFilesRef.current.delete(next.id);
+          await deleteUploadFile(next.id);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "File upload failed.";
+          updateStatuses((current) =>
+            current.map((upload) =>
+              upload.id === next.id
+                ? {
+                    ...upload,
+                    status: "error",
+                    message,
+                  }
+                : upload,
+            ),
+          );
+        }
+      }
+    } finally {
+      isProcessingRef.current = false;
+    }
+
+    if (successfulUploads) {
+      const shouldRefreshDocuments =
+        selectedPersona && successfulPersonaSlugs.has(selectedPersona.slug);
+      if (shouldRefreshDocuments) {
+        await loadDocuments();
+      }
+      const failed = currentStatuses.filter((status) => status.status === "error").length;
+      if (!failed) {
+        setSuccessMessage(
+          successfulUploads === 1
+            ? "Upload completed successfully."
+            : `Uploaded ${successfulUploads} files successfully.`,
+        );
+      } else {
+        setSuccessMessage(
+          `Uploaded ${successfulUploads} file${successfulUploads === 1 ? "" : "s"}. Check the upload status panel for any errors.`,
+        );
+      }
+    } else if (currentStatuses.some((status) => status.status === "error")) {
+      setDocumentsError(
+        (current) => current ?? "Uploads failed. See the upload status panel for details.",
+      );
+    }
+  }, [baseUrl, loadDocuments, selectedPersona, uploadStatuses]);
+
+  useEffect(() => {
+    if (!hasRestoredStatusesRef.current) {
+      return;
+    }
+    const hasPending = uploadStatuses.some(
+      (upload) => upload.status === "queued" || upload.status === "uploading",
+    );
+    if (hasPending) {
+      void processUploadQueue();
+    }
+  }, [processUploadQueue, uploadStatuses]);
+
+  const handleFileSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    if (!files.length || !selectedPersona) {
+      return;
+    }
+    setDocumentsError(null);
+    setSuccessMessage(null);
+    const queuedUploads = await Promise.all(
+      files.map(async (file) => {
+        const id = generateUploadId();
+        pendingFilesRef.current.set(id, file);
+        try {
+          await storeUploadFile(id, file);
+        } catch {
+          // Fallback silently if caching fails; upload still proceeds in-memory.
+        }
+        return {
+          id,
+          filename: file.name,
+          personaSlug: selectedPersona.slug,
+          personaName: selectedPersona.display_name,
+          status: "queued" as const,
+          message: `Queued for ${selectedPersona.display_name}`,
+        };
+      }),
+    );
+    setUploadStatuses((current) => [...queuedUploads, ...current]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    await processUploadQueue();
   };
 
   const handleDelete = async (relativePath: string) => {
@@ -351,6 +657,14 @@ export function PersonaStudioManager({
     }
   };
 
+  const hasActiveUploads = useMemo(
+    () =>
+      uploadStatuses.some(
+        (upload) => upload.status === "queued" || upload.status === "uploading",
+      ),
+    [uploadStatuses],
+  );
+
   return (
     <>
       <div
@@ -499,7 +813,7 @@ export function PersonaStudioManager({
             </select>
             {personasError && <p className="text-xs text-red-500">{personasError}</p>}
           </div>
-          <div className="mt-4 flex-1 overflow-hidden rounded-lg border border-dashed border-border/70 bg-card/60">
+          <div className="mt-4 flex min-h-[18rem] flex-col overflow-hidden rounded-lg border border-dashed border-border/70 bg-card/60">
             <div className="flex items-center justify-between border-b border-border/60 px-4 py-2 text-sm">
               <p className="font-medium">Documents</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -514,9 +828,9 @@ export function PersonaStudioManager({
                   size="sm"
                   className="gap-1"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={!selectedPersona || isUploading}
+                  disabled={!selectedPersona || hasActiveUploads}
                 >
-                  {isUploading ? (
+                  {hasActiveUploads ? (
                     <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <PlusIcon className="h-3.5 w-3.5" />
@@ -528,7 +842,8 @@ export function PersonaStudioManager({
                   ref={fileInputRef}
                   className="hidden"
                   onChange={handleFileSelection}
-                  disabled={!selectedPersona || isUploading}
+                  disabled={!selectedPersona || hasActiveUploads}
+                  multiple
                 />
               </div>
             </div>
@@ -556,7 +871,7 @@ export function PersonaStudioManager({
                           {document.filename}
                         </p>
                         <p
-                          className="text-xs text-muted-foreground break-all"
+                          className="break-all text-xs text-muted-foreground"
                           title={document.relative_path}
                         >
                           {document.relative_path}
@@ -609,9 +924,135 @@ export function PersonaStudioManager({
       onCancel={closeRenameModal}
       onSubmit={handleRenamePersonaSubmit}
     />
+      {uploadStatuses.length > 0 &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <UploadStatusPanel
+            statuses={uploadStatuses}
+            isUploading={hasActiveUploads}
+            personaName={selectedPersona?.display_name}
+            isCollapsed={isStatusCollapsed}
+            onToggleCollapse={() => setIsStatusCollapsed((prev) => !prev)}
+          />,
+          document.body,
+        )}
     </>
   );
 }
+
+type UploadStatusPanelProps = {
+  statuses: UploadStatus[];
+  isUploading: boolean;
+  personaName?: string;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+};
+
+const UploadStatusPanel = ({
+  statuses,
+  isUploading,
+  personaName,
+  isCollapsed,
+  onToggleCollapse,
+}: UploadStatusPanelProps) => {
+  const statusLabel = (status: UploadStatus["status"]) => {
+    switch (status) {
+      case "queued":
+        return "Queued";
+      case "uploading":
+        return "Uploading";
+      case "success":
+        return "Completed";
+      case "error":
+        return "Error";
+      default:
+        return status;
+    }
+  };
+
+  const renderIcon = (status: UploadStatus["status"]) => {
+    if (status === "uploading") {
+      return <Loader2Icon className="h-4 w-4 animate-spin text-blue-500" />;
+    }
+    if (status === "queued") {
+      return <ClockIcon className="h-4 w-4 text-muted-foreground" />;
+    }
+    if (status === "success") {
+      return <CheckCircle2Icon className="h-4 w-4 text-green-600" />;
+    }
+    return <AlertTriangleIcon className="h-4 w-4 text-red-500" />;
+  };
+
+  return (
+    <div className="fixed bottom-4 right-4 z-40 w-[min(22rem,calc(100vw-2rem))]">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-border/80 bg-card/90 shadow-2xl backdrop-blur-md">
+        <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+              Upload status
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {isUploading
+                ? `Uploading to ${personaName ?? "persona"}…`
+                : "Pick one or more files to see live progress."}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isUploading && <Loader2Icon className="h-4 w-4 animate-spin text-primary" />}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1"
+              onClick={onToggleCollapse}
+            >
+              {isCollapsed ? (
+                <>
+                  <ChevronUpIcon className="h-4 w-4" /> Expand
+                </>
+              ) : (
+                <>
+                  <ChevronDownIcon className="h-4 w-4" /> Collapse
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+        {!isCollapsed && (
+          <div className="flex max-h-[50vh] flex-1 divide-y divide-border/70 overflow-y-auto">
+            {!statuses.length ? (
+              <p className="px-4 py-6 text-sm text-muted-foreground">
+                Uploads will appear here with their progress and any errors.
+              </p>
+            ) : (
+              <div className="w-full">
+                {statuses.map((upload) => (
+                  <div
+                    key={upload.id}
+                    className="flex items-start gap-3 px-4 py-3 text-sm"
+                  >
+                    <div className="mt-0.5">{renderIcon(upload.status)}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium" title={upload.filename}>
+                        {upload.filename}
+                      </p>
+                      {upload.message && (
+                        <p className="mt-1 break-words text-xs text-muted-foreground">{upload.message}</p>
+                      )}
+                    </div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {statusLabel(upload.status)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 type RenamePersonaDialogProps = {
   persona: PersonaSummary | null;
