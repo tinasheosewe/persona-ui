@@ -4,8 +4,8 @@ import { MyRuntimeProvider } from "@/app/MyRuntimeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Chatbot UI",
-  description: "Lightweight Next.js client for the FastAPI chatbot backend",
+  title: "Persona UI",
+  description: "Next.js client for the Persona chatbot backend",
 };
 
 export default function RootLayout({

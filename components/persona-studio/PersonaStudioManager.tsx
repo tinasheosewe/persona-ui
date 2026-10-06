@@ -886,7 +886,13 @@ export function PersonaStudioManager({
                           variant="outline"
                           size="sm"
                           className="gap-1"
-                          onClick={() => onViewDocument?.(document)}
+                          onClick={() => {
+                            if (onViewDocument) {
+                              onViewDocument(document);
+                            } else {
+                              window.open(document.download_url, "_blank", "noopener,noreferrer");
+                            }
+                          }}
                         >
                           <ExternalLinkIcon className="h-3.5 w-3.5" /> Open
                         </Button>

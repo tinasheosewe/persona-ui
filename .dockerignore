@@ -1,11 +1,6 @@
 node_modules
 .pnpm-store
-.turbo
 .next
-apps/**/.next
-packages/**/.next
-packages/**/dist
-vector_store
 .DS_Store
 .vscode
 .git
